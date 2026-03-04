@@ -1,4 +1,4 @@
-# Caffaine — Complete System Architecture
+# Caffeine — Complete System Architecture
 
 ## 1. High-Level System Overview
 
@@ -206,7 +206,7 @@ flowchart TD
 
 ## 6. Development Philosophy & Scaling
 
-The architecture has shifted from a single-app (LinguBreak) MVP to a **multi-feature workspace (`Caffaine`)**. 
+The architecture has shifted from a single-app (LinguBreak) MVP to a **multi-feature workspace (`Caffeine`)**. 
 
 - **App Router (`src/app/`)**: Thin glue layer mounting the features and exposing API routes.
 - **Feature Modules (`src/features/`)**: Self-contained vertical slices. Each MVP (LinguBreak, OCR, Dictionary) manages its own specialized components, types, and logic.

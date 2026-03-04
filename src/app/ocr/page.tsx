@@ -277,7 +277,7 @@ export default function OcrPage() {
             className="text-xs font-sarabun"
             style={{ color: "var(--text-muted)" }}
           >
-            ส่วนหนึ่งของ Caffaine · Demo / Test Page
+            ส่วนหนึ่งของ Caffeine · Demo / Test Page
           </p>
         </div>
       </footer>

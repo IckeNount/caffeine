@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { DictionaryLookup } from '@/features/dictionary/components/DictionaryLookup';
 
 export const metadata: Metadata = {
-  title: 'Dictionary Lookup Test — Caffaine',
+  title: 'Dictionary Lookup Test — Caffeine',
   description: 'Test page for the high-speed dictionary lookup service.',
 };
 

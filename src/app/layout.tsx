@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Caffaine — AI English Learning Tools for Thai Students",
+  title: "Caffeine — AI English Learning Tools for Thai Students",
   description:
     "AI-powered tools that help Thai students learn English — sentence breakdown, OCR reader, dictionary, and more.",
   keywords: [

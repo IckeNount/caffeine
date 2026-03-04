@@ -68,7 +68,7 @@ export default function Home() {
             </div>
             <span className="font-heading text-base font-bold tracking-tight uppercase">
               <span className="rov-text">Caff</span>
-              <span style={{ color: 'var(--text-primary)' }}>aine</span>
+              <span style={{ color: 'var(--text-primary)' }}>eine</span>
             </span>
           </div>
           <span className="text-xs font-sarabun hidden sm:block" style={{ color: 'var(--text-muted)' }}>
@@ -152,7 +152,7 @@ export default function Home() {
       <footer style={{ borderTop: '3px solid var(--border-brutal)', backgroundColor: 'var(--bg-card)' }} className="py-6">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs font-heading uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-            Caffaine — AI English Learning Tools
+            Caffeine — AI English Learning Tools
           </p>
           <p className="text-xs font-sarabun" style={{ color: 'var(--text-muted)' }}>
             สร้างด้วย ❤️ เพื่อนักเรียนไทย
