@@ -58,6 +58,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (body.difficulty !== undefined) updateData.difficulty = body.difficulty;
     if (body.audio_path !== undefined) updateData.audio_path = body.audio_path;
     if (body.audio_mime !== undefined) updateData.audio_mime = body.audio_mime;
+    if (body.grammar_notes !== undefined)
+      updateData.grammar_notes = body.grammar_notes;
 
     // Handle status changes (publish / unpublish / archive)
     if (body.status !== undefined) {

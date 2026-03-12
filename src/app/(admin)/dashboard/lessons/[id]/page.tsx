@@ -18,7 +18,13 @@ import {
   ChevronDown,
   RefreshCw,
   Sparkles,
+  ScanText,
+  Mic,
+  BookOpen,
+  X,
 } from "lucide-react";
+import { useOcr } from "@/features/ocr/hooks/useOcr";
+import { useTranscription } from "@/features/transcription/hooks/useTranscription";
 
 interface Segment {
   id: string;
@@ -30,6 +36,11 @@ interface Segment {
   audio_end: number | null;
 }
 
+interface GrammarNote {
+  title: string;
+  content: string;
+}
+
 interface Lesson {
   id: string;
   title: string;
@@ -39,6 +50,7 @@ interface Lesson {
   folder_id: string | null;
   folder: { id: string; name: string; color: string } | null;
   audio_path: string | null;
+  grammar_notes: GrammarNote[] | null;
   segments: Segment[];
 }
 
@@ -85,6 +97,18 @@ export default function LessonEditorPage() {
   const [importText, setImportText] = useState("");
   const [importing, setImporting] = useState(false);
 
+  // OCR
+  const [showOcr, setShowOcr] = useState(false);
+  const ocr = useOcr("gemini");
+
+  // Transcription
+  const [showTranscription, setShowTranscription] = useState(false);
+  const transcription = useTranscription();
+
+  // Grammar notes
+  const [grammarNotes, setGrammarNotes] = useState<GrammarNote[]>([]);
+  const [showGrammarNotes, setShowGrammarNotes] = useState(false);
+
   // Auto-save timer
   const autoSaveRef = useRef<NodeJS.Timeout | null>(null);
   const [hasUnsaved, setHasUnsaved] = useState(false);
@@ -96,6 +120,7 @@ export default function LessonEditorPage() {
       if (!res.ok) throw new Error(data.error);
       setLesson(data.lesson);
       setSegments(data.lesson.segments || []);
+      setGrammarNotes(data.lesson.grammar_notes || []);
       setEditTitle(data.lesson.title);
       setEditFolderId(data.lesson.folder_id || "");
       setEditTags((data.lesson.tags || []).join(", "));
@@ -346,6 +371,111 @@ export default function LessonEditorPage() {
       setError(err instanceof Error ? err.message : "Import failed");
     } finally {
       setImporting(false);
+    }
+  }
+
+  // OCR import handler
+  async function handleOcrImport() {
+    if (!ocr.result?.text) return;
+    setImporting(true);
+    try {
+      const sentences = ocr.result.text
+        .split(/(?<=[.!?])\s+|\n+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      if (sentences.length === 0) { setError("No sentences found in OCR result"); return; }
+      const res = await fetch(`/api/admin/lessons/${lessonId}/segments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ segments: sentences.map((s) => ({ original_text: s })) }),
+      });
+      if (!res.ok) throw new Error("Import failed");
+      setShowOcr(false);
+      ocr.reset();
+      showSuccess(`Imported ${sentences.length} sentences from OCR!`);
+      fetchLesson();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "OCR import failed");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  // Transcription import handler
+  async function handleTranscriptionImport() {
+    if (!transcription.result) return;
+    setImporting(true);
+    try {
+      const result = transcription.result;
+      const segments = result.segments?.length
+        ? result.segments.map((seg: { text: string; start: number; end: number }) => ({
+            original_text: seg.text.trim(),
+            audio_start: seg.start,
+            audio_end: seg.end,
+          }))
+        : result.text
+            .split(/(?<=[.!?])\s+|\n+/)
+            .map((s: string) => s.trim())
+            .filter((s: string) => s.length > 0)
+            .map((s: string) => ({ original_text: s }));
+
+      if (segments.length === 0) { setError("No segments from transcription"); return; }
+
+      const res = await fetch(`/api/admin/lessons/${lessonId}/segments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ segments }),
+      });
+      if (!res.ok) throw new Error("Import failed");
+
+      // Attach audio to lesson if available
+      if (result.audioPath) {
+        await fetch(`/api/admin/lessons/${lessonId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ audio_path: result.audioPath }),
+        });
+      }
+
+      setShowTranscription(false);
+      transcription.reset();
+      showSuccess(`Imported ${segments.length} segments from audio!`);
+      fetchLesson();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Transcription import failed");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  // Grammar notes handlers
+  function addGrammarNote() {
+    setGrammarNotes((prev) => [...prev, { title: "", content: "" }]);
+  }
+
+  function updateGrammarNote(index: number, field: keyof GrammarNote, value: string) {
+    setGrammarNotes((prev) =>
+      prev.map((n, i) => (i === index ? { ...n, [field]: value } : n)),
+    );
+    setHasUnsaved(true);
+  }
+
+  function removeGrammarNote(index: number) {
+    setGrammarNotes((prev) => prev.filter((_, i) => i !== index));
+    setHasUnsaved(true);
+  }
+
+  async function saveGrammarNotes() {
+    try {
+      const res = await fetch(`/api/admin/lessons/${lessonId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ grammar_notes: grammarNotes.filter((n) => n.title.trim() || n.content.trim()) }),
+      });
+      if (!res.ok) throw new Error("Failed to save grammar notes");
+      showSuccess("Grammar notes saved!");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed");
     }
   }
 
@@ -612,6 +742,26 @@ export default function LessonEditorPage() {
           <Upload size={14} /> Import Text
         </button>
         <button
+          onClick={() => setShowOcr(true)}
+          className='flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium hover:bg-white/5 transition-colors'
+          style={{
+            color: "var(--text-primary)",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <ScanText size={14} /> OCR Upload
+        </button>
+        <button
+          onClick={() => setShowTranscription(true)}
+          className='flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium hover:bg-white/5 transition-colors'
+          style={{
+            color: "var(--text-primary)",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <Mic size={14} /> Audio Upload
+        </button>
+        <button
           onClick={() => addSegment("")}
           className='flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium hover:bg-white/5 transition-colors'
           style={{
@@ -767,6 +917,233 @@ export default function LessonEditorPage() {
           </div>
         </div>
       )}
+
+      {/* OCR Upload Modal */}
+      {showOcr && (
+        <div
+          className='rounded-xl p-6 space-y-4'
+          style={{
+            backgroundColor: "var(--bg-secondary, #111217)",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <div className='flex items-center justify-between'>
+            <h2 className='font-semibold flex items-center gap-2' style={{ color: "var(--text-primary)" }}>
+              <ScanText size={18} style={{ color: "#FF9500" }} /> OCR — Extract Text from Image
+            </h2>
+            <button onClick={() => { setShowOcr(false); ocr.reset(); }} className='p-1 rounded hover:bg-white/5'>
+              <X size={18} style={{ color: "var(--text-muted)" }} />
+            </button>
+          </div>
+          <p className='text-xs' style={{ color: "var(--text-muted)" }}>
+            Upload an image of English text (textbook page, worksheet, whiteboard). The OCR engine will extract the text and split it into segments.
+          </p>
+          {!ocr.result ? (
+            <div>
+              <label
+                className='flex flex-col items-center justify-center gap-3 p-8 rounded-lg cursor-pointer hover:bg-white/[0.02] transition-colors'
+                style={{ border: "2px dashed rgba(255,255,255,0.1)" }}
+              >
+                <ScanText size={32} style={{ color: "var(--text-muted)", opacity: 0.4 }} />
+                <span className='text-sm' style={{ color: "var(--text-muted)" }}>
+                  {ocr.isLoading ? "Processing..." : "Click to upload image"}
+                </span>
+                {ocr.isLoading && ocr.progress != null && (
+                  <div className='w-full max-w-xs h-1.5 rounded-full' style={{ backgroundColor: "rgba(255,149,0,0.2)" }}>
+                    <div className='h-full rounded-full transition-all' style={{ width: `${ocr.progress}%`, backgroundColor: "#FF9500" }} />
+                  </div>
+                )}
+                {ocr.isLoading && <Loader2 size={20} className='animate-spin' style={{ color: "#FF9500" }} />}
+                <input
+                  type='file'
+                  accept='image/*'
+                  className='hidden'
+                  onChange={(e) => { if (e.target.files?.[0]) ocr.uploadAndExtract(e.target.files[0]); }}
+                  disabled={ocr.isLoading}
+                />
+              </label>
+              {ocr.error && <p className='text-xs mt-2' style={{ color: "#EF4444" }}>{ocr.error}</p>}
+            </div>
+          ) : (
+            <div className='space-y-3'>
+              <div
+                className='rounded-lg p-4 max-h-60 overflow-y-auto text-sm leading-relaxed'
+                style={{ backgroundColor: "rgba(255,255,255,0.04)", color: "var(--text-primary)" }}
+              >
+                {ocr.result.text}
+              </div>
+              <div className='flex items-center justify-between'>
+                <span className='text-xs' style={{ color: "var(--text-muted)" }}>
+                  ~{ocr.result.text.split(/(?<=[.!?])\s+|\n+/).filter((s) => s.trim()).length} sentences detected
+                </span>
+                <div className='flex gap-2'>
+                  <button onClick={() => ocr.reset()} className='px-4 py-2 rounded-lg text-sm hover:bg-white/5' style={{ color: "var(--text-muted)" }}>Try Again</button>
+                  <button
+                    onClick={handleOcrImport}
+                    disabled={importing}
+                    className='flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50'
+                    style={{ background: "linear-gradient(135deg, #FFE500, #FF9500)", color: "#0A0A0F" }}
+                  >
+                    {importing ? <Loader2 size={14} className='animate-spin' /> : <Plus size={14} />} Add as Segments
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Transcription Upload Modal */}
+      {showTranscription && (
+        <div
+          className='rounded-xl p-6 space-y-4'
+          style={{
+            backgroundColor: "var(--bg-secondary, #111217)",
+            border: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <div className='flex items-center justify-between'>
+            <h2 className='font-semibold flex items-center gap-2' style={{ color: "var(--text-primary)" }}>
+              <Mic size={18} style={{ color: "#8B5CF6" }} /> Audio Transcription
+            </h2>
+            <button onClick={() => { setShowTranscription(false); transcription.reset(); }} className='p-1 rounded hover:bg-white/5'>
+              <X size={18} style={{ color: "var(--text-muted)" }} />
+            </button>
+          </div>
+          <p className='text-xs' style={{ color: "var(--text-muted)" }}>
+            Upload an audio file (MP3, WAV, M4A). The transcription engine will convert speech to text with timestamps, creating segments automatically.
+          </p>
+          {!transcription.result ? (
+            <div>
+              <label
+                className='flex flex-col items-center justify-center gap-3 p-8 rounded-lg cursor-pointer hover:bg-white/[0.02] transition-colors'
+                style={{ border: "2px dashed rgba(255,255,255,0.1)" }}
+              >
+                <Mic size={32} style={{ color: "var(--text-muted)", opacity: 0.4 }} />
+                <span className='text-sm' style={{ color: "var(--text-muted)" }}>
+                  {transcription.isLoading ? "Transcribing..." : "Click to upload audio file"}
+                </span>
+                {transcription.isLoading && <Loader2 size={20} className='animate-spin' style={{ color: "#8B5CF6" }} />}
+                <input
+                  type='file'
+                  accept='audio/*,video/*'
+                  className='hidden'
+                  onChange={(e) => { if (e.target.files?.[0]) transcription.uploadAndTranscribe(e.target.files[0]); }}
+                  disabled={transcription.isLoading}
+                />
+              </label>
+              {transcription.error && <p className='text-xs mt-2' style={{ color: "#EF4444" }}>{transcription.error}</p>}
+            </div>
+          ) : (
+            <div className='space-y-3'>
+              <div
+                className='rounded-lg p-4 max-h-60 overflow-y-auto text-sm leading-relaxed'
+                style={{ backgroundColor: "rgba(255,255,255,0.04)", color: "var(--text-primary)" }}
+              >
+                {transcription.result.text}
+              </div>
+              <div className='flex items-center justify-between'>
+                <span className='text-xs' style={{ color: "var(--text-muted)" }}>
+                  {transcription.result.segments?.length ?? 0} timestamped segments detected
+                </span>
+                <div className='flex gap-2'>
+                  <button onClick={() => transcription.reset()} className='px-4 py-2 rounded-lg text-sm hover:bg-white/5' style={{ color: "var(--text-muted)" }}>Try Again</button>
+                  <button
+                    onClick={handleTranscriptionImport}
+                    disabled={importing}
+                    className='flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50'
+                    style={{ background: "linear-gradient(135deg, #8B5CF6, #6366F1)", color: "#FFF" }}
+                  >
+                    {importing ? <Loader2 size={14} className='animate-spin' /> : <Plus size={14} />} Add as Segments
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Grammar Notes Section */}
+      <div
+        className='rounded-xl overflow-hidden'
+        style={{
+          backgroundColor: "var(--bg-secondary, #111217)",
+          border: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
+        <button
+          className='w-full flex items-center justify-between px-5 py-3 hover:bg-white/[0.02] transition-colors'
+          onClick={() => setShowGrammarNotes(!showGrammarNotes)}
+        >
+          <span className='flex items-center gap-2 text-sm font-medium' style={{ color: "var(--text-primary)" }}>
+            <BookOpen size={16} style={{ color: "#22C55E" }} />
+            Grammar Notes
+            {grammarNotes.length > 0 && (
+              <span className='text-[10px] px-1.5 py-0.5 rounded-full' style={{ backgroundColor: "rgba(34,197,94,0.15)", color: "#22C55E" }}>
+                {grammarNotes.length}
+              </span>
+            )}
+          </span>
+          <ChevronDown
+            size={16}
+            className={`transition-transform ${showGrammarNotes ? "rotate-180" : ""}`}
+            style={{ color: "var(--text-muted)" }}
+          />
+        </button>
+        {showGrammarNotes && (
+          <div className='px-5 pb-5 space-y-3'>
+            <p className='text-xs' style={{ color: "var(--text-muted)" }}>
+              Add grammar annotations for this lesson (e.g. &quot;was vs were&quot;, &quot;present perfect usage&quot;). These will be shown to students and fed to the AI tutor.
+            </p>
+            {grammarNotes.map((note, i) => (
+              <div
+                key={i}
+                className='rounded-lg p-4 space-y-2'
+                style={{ backgroundColor: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+              >
+                <div className='flex items-center gap-2'>
+                  <input
+                    value={note.title}
+                    onChange={(e) => updateGrammarNote(i, "title", e.target.value)}
+                    placeholder='Note title (e.g. "was vs were")'
+                    className='flex-1 px-3 py-1.5 rounded-md text-sm outline-none'
+                    style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--text-primary)" }}
+                  />
+                  <button onClick={() => removeGrammarNote(i)} className='p-1 rounded hover:bg-red-500/10'>
+                    <Trash2 size={14} style={{ color: "#EF4444" }} />
+                  </button>
+                </div>
+                <textarea
+                  value={note.content}
+                  onChange={(e) => updateGrammarNote(i, "content", e.target.value)}
+                  placeholder='Explain the grammar rule, usage, or common mistakes...'
+                  rows={3}
+                  className='w-full px-3 py-2 rounded-md text-sm outline-none resize-y'
+                  style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--text-primary)" }}
+                />
+              </div>
+            ))}
+            <div className='flex items-center gap-2'>
+              <button
+                onClick={addGrammarNote}
+                className='flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium hover:bg-white/5 transition-colors'
+                style={{ color: "var(--text-muted)", border: "1px dashed rgba(255,255,255,0.1)" }}
+              >
+                <Plus size={14} /> Add Note
+              </button>
+              {grammarNotes.length > 0 && (
+                <button
+                  onClick={saveGrammarNotes}
+                  className='flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold'
+                  style={{ background: "linear-gradient(135deg, #22C55E, #16A34A)", color: "#FFF" }}
+                >
+                  <Save size={14} /> Save Notes
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Split Pane: Segments */}
       {segments.length === 0 ? (

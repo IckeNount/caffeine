@@ -45,6 +45,12 @@ export interface Lesson {
   segments: { count: number }[];
 }
 
+/** A teacher-authored grammar note attached to a lesson */
+export interface GrammarNote {
+  title: string;
+  content: string;
+}
+
 /** Full lesson with segments (detail view) */
 export interface LessonDetail {
   id: string;
@@ -54,6 +60,7 @@ export interface LessonDetail {
   difficulty: "beginner" | "intermediate" | "advanced" | null;
   audio_path: string | null;
   audio_mime: string | null;
+  grammar_notes: GrammarNote[] | null;
   published_at: string | null;
   folder: Folder | null;
   segments: LessonSegment[];

@@ -2,58 +2,18 @@
 
 import React from "react";
 import Link from "next/link";
-import { Crosshair, ScanText, BookOpen, Mic, ArrowRight, Sparkles } from "lucide-react";
+import { BookOpen, ArrowRight, Sparkles } from "lucide-react";
 
 const FEATURES = [
   {
     id: "lessons",
     name: "Lessons",
     nameThai: "บทเรียน",
-    description: "Browse teacher-curated English lessons with audio, translations, and grammar breakdowns.",
+    description: "Interactive English lessons with built-in dictionary, sentence analysis, audio, and grammar notes from your teacher.",
     icon: <BookOpen className="w-6 h-6" />,
     href: "/lessons",
     status: "live" as const,
     color: "var(--accent-blue, #3B82F6)",
-  },
-  {
-    id: "lingubreak",
-    name: "LinguBreak",
-    nameThai: "แยกประโยค",
-    description: "Break down complex English sentences into visual, color-coded structures using Thai logic.",
-    icon: <Crosshair className="w-6 h-6" />,
-    href: "/lingubreak",
-    status: "live" as const,
-    color: "var(--accent-gold)",
-  },
-  {
-    id: "ocr",
-    name: "OCR Reader",
-    nameThai: "อ่านรูปภาพ",
-    description: "Upload a photo of English text and instantly extract, analyze, and learn from it.",
-    icon: <ScanText className="w-6 h-6" />,
-    href: "/ocr",
-    status: "coming-soon" as const,
-    color: "var(--accent-coral, #FF4D4D)",
-  },
-  {
-    id: "dictionary",
-    name: "Click to Lookup",
-    nameThai: "คลิกเพื่อค้นหา",
-    description: "Click any English word to instantly see its definition, pronunciation, and Thai translation.",
-    icon: <BookOpen className="w-6 h-6" />,
-    href: "/dictionary",
-    status: "coming-soon" as const,
-    color: "var(--accent-teal, #00E5C7)",
-  },
-  {
-    id: "transcription",
-    name: "Transcription",
-    nameThai: "ถอดเสียง",
-    description: "Upload an English audio file and get highly accurate text transcription powered by Groq Whisper.",
-    icon: <Mic className="w-6 h-6" />,
-    href: "/transcription",
-    status: "live" as const,
-    color: "var(--accent-gold)",
   },
 ];
 
@@ -111,12 +71,8 @@ export default function Home() {
               key={feature.id}
               href={feature.href}
               className="brutal-card p-6 flex flex-col gap-4 transition-transform hover:-translate-y-1 hover:shadow-lg group"
-              style={{
-                opacity: feature.status === "coming-soon" ? 0.65 : 1,
-                pointerEvents: feature.status === "coming-soon" ? "none" : "auto",
-              }}
             >
-              {/* Icon + Status */}
+              {/* Icon */}
               <div className="flex items-center justify-between">
                 <div
                   className="w-12 h-12 flex items-center justify-center border-2 border-black"
@@ -124,14 +80,6 @@ export default function Home() {
                 >
                   {feature.icon}
                 </div>
-                {feature.status === "coming-soon" && (
-                  <span
-                    className="text-[10px] font-heading uppercase tracking-wider px-2 py-1 border-2 border-black"
-                    style={{ backgroundColor: 'var(--bg-card)', color: 'var(--text-muted)' }}
-                  >
-                    Coming Soon
-                  </span>
-                )}
               </div>
 
               {/* Content */}
@@ -148,11 +96,9 @@ export default function Home() {
               </p>
 
               {/* CTA */}
-              {feature.status === "live" && (
-                <div className="flex items-center gap-1 text-sm font-heading uppercase tracking-wider group-hover:gap-2 transition-all" style={{ color: feature.color }}>
-                  Open <ArrowRight className="w-4 h-4" />
-                </div>
-              )}
+              <div className="flex items-center gap-1 text-sm font-heading uppercase tracking-wider group-hover:gap-2 transition-all" style={{ color: feature.color }}>
+                Open <ArrowRight className="w-4 h-4" />
+              </div>
             </Link>
           ))}
         </section>

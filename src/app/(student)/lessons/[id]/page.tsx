@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { useLesson } from "@/shared/hooks/useLesson";
 import type { LessonSegment, GrammarChunk } from "@/shared/types/lesson-types";
+import InteractiveText from "@/features/lesson-viewer/components/InteractiveText";
+import TutorSidebar from "@/features/lesson-viewer/components/TutorSidebar";
 
 // ── Difficulty Config ────────────────────────────────────────────
 const DIFFICULTY_CONFIG = {
@@ -106,18 +108,22 @@ function GrammarChunkTag({ chunk }: { chunk: GrammarChunk }) {
 }
 
 // ── Segment Card ─────────────────────────────────────────────────
-function SegmentCard({
+const SegmentCard = React.memo(function SegmentCard({
   segment,
   index,
   isActive,
   onPlaySegment,
   hasAudio,
+  onWordClick,
+  onSentenceSelect,
 }: {
   segment: LessonSegment;
   index: number;
   isActive: boolean;
   onPlaySegment: (start: number) => void;
   hasAudio: boolean;
+  onWordClick: (word: string) => void;
+  onSentenceSelect: (sentence: string) => void;
 }) {
   const [showGrammar, setShowGrammar] = useState(false);
   const breakdown = segment.grammar_breakdown;
@@ -161,9 +167,13 @@ function SegmentCard({
         )}
       </div>
 
-      {/* Original Text */}
+      {/* Original Text — Interactive */}
       <p className="text-base sm:text-lg leading-relaxed font-medium mb-2">
-        {segment.original_text}
+        <InteractiveText
+          text={segment.original_text}
+          onWordClick={onWordClick}
+          onSentenceSelect={onSentenceSelect}
+        />
       </p>
 
       {/* Thai Translation */}
@@ -223,7 +233,7 @@ function SegmentCard({
       )}
     </div>
   );
-}
+});
 
 // ── Time Formatter ───────────────────────────────────────────────
 function formatTime(seconds: number): string {
@@ -318,6 +328,23 @@ export default function LessonDetailPage() {
   const lessonId = params.id as string;
   const { lesson, isLoading, error, refetch } = useLesson(lessonId);
 
+  // Interactive text state for AI tutor
+  const [selectedWord, setSelectedWord] = useState<string | null>(null);
+  const [selectedSentence, setSelectedSentence] = useState<string | null>(null);
+
+  const handleWordClick = useCallback((word: string) => {
+    setSelectedWord(word);
+  }, []);
+
+  const handleSentenceSelect = useCallback((sentence: string) => {
+    setSelectedSentence(sentence);
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedWord(null);
+    setSelectedSentence(null);
+  }, []);
+
   // Build audio URL from Supabase storage path
   const audioUrl = lesson?.audio_path
     ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${lesson.audio_path}`
@@ -386,8 +413,11 @@ export default function LessonDetailPage() {
         </div>
       </header>
 
-      {/* Main */}
-      <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-8 sm:py-12">
+      {/* Main — Split layout */}
+      <main className="flex-1 w-full px-4 sm:px-6 py-8 sm:py-12">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-6">
+        {/* Left Pane: Lesson Content */}
+        <div>
         {isLoading ? (
           <DetailSkeleton />
         ) : error ? (
@@ -508,12 +538,28 @@ export default function LessonDetailPage() {
                     isActive={i === activeSegmentIndex}
                     onPlaySegment={seekTo}
                     hasAudio={!!audioUrl}
+                    onWordClick={handleWordClick}
+                    onSentenceSelect={handleSentenceSelect}
                   />
                 ))}
               </div>
             </section>
           </div>
         ) : null}
+        </div>
+
+        {/* Right Pane: AI Tutor Sidebar */}
+        {lesson && (
+          <div className="hidden lg:block sticky top-20 h-[calc(100vh-6rem)]">
+            <TutorSidebar
+              selectedWord={selectedWord}
+              selectedSentence={selectedSentence}
+              grammarNotes={lesson.grammar_notes || []}
+              onClear={handleClearSelection}
+            />
+          </div>
+        )}
+        </div>
       </main>
 
       {/* Footer */}
