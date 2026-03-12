@@ -6,6 +6,16 @@ import { Crosshair, ScanText, BookOpen, Mic, ArrowRight, Sparkles } from "lucide
 
 const FEATURES = [
   {
+    id: "lessons",
+    name: "Lessons",
+    nameThai: "บทเรียน",
+    description: "Browse teacher-curated English lessons with audio, translations, and grammar breakdowns.",
+    icon: <BookOpen className="w-6 h-6" />,
+    href: "/lessons",
+    status: "live" as const,
+    color: "var(--accent-blue, #3B82F6)",
+  },
+  {
     id: "lingubreak",
     name: "LinguBreak",
     nameThai: "แยกประโยค",
