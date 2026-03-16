@@ -413,11 +413,10 @@ export default function LessonDetailPage() {
         </div>
       </header>
 
-      {/* Main — Split layout */}
-      <main className="flex-1 w-full px-4 sm:px-6 py-8 sm:py-12">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-6">
-        {/* Left Pane: Lesson Content */}
-        <div>
+      {/* Main — Lesson content */}
+      <main className="flex-1 w-full px-4 sm:px-6 pt-8 sm:pt-12 pb-40">
+        <div className="max-w-7xl mx-auto">
+        {/* Lesson Content */}
         {isLoading ? (
           <DetailSkeleton />
         ) : error ? (
@@ -547,20 +546,23 @@ export default function LessonDetailPage() {
           </div>
         ) : null}
         </div>
-
-        {/* Right Pane: AI Tutor Sidebar */}
-        {lesson && (
-          <div className="hidden lg:block sticky top-20 h-[calc(100vh-6rem)]">
-            <TutorSidebar
-              selectedWord={selectedWord}
-              selectedSentence={selectedSentence}
-              grammarNotes={lesson.grammar_notes || []}
-              onClear={handleClearSelection}
-            />
-          </div>
-        )}
-        </div>
       </main>
+
+      {/* Bottom-fixed AI Tutor: Dictionary / Breakdown / Notes */}
+      {lesson && (
+        <div className="fixed inset-x-0 bottom-0 z-40 px-4 sm:px-6 pb-4 pointer-events-none">
+          <div className="max-w-4xl mx-auto pointer-events-auto">
+            <div className="h-80">
+              <TutorSidebar
+                selectedWord={selectedWord}
+                selectedSentence={selectedSentence}
+                grammarNotes={lesson.grammar_notes || []}
+                onClear={handleClearSelection}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer

@@ -159,6 +159,12 @@ async function processJobInBackground(
             translation: result.value.translation,
             success: true,
           });
+
+          // Persist translation to the lesson_segments table
+          await supabaseAdmin
+            .from("lesson_segments")
+            .update({ thai_translation: result.value.translation })
+            .eq("id", segment.id);
         } else {
           results.push({
             segment_id: segment.id,

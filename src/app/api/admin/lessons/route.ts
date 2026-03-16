@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTeacher, AuthError } from "@/shared/lib/auth/auth";
 import { supabaseAdmin } from "@/shared/lib/db/supabase";
 
+export const dynamic = "force-dynamic";
+
 // GET /api/admin/lessons — List lessons for the authenticated teacher
 export async function GET(request: NextRequest) {
   try {

@@ -576,3 +576,153 @@ graph LR
 | Icons        | Lucide React                     | 0.574.x     |
 | AI SDK       | @google/generative-ai            | 0.24.x      |
 | Audio AI     | groq-sdk                         | 0.37.x      |
+
+---
+
+## 10. Architecture Review (Reality Check vs Diagram)
+
+This document’s diagrams are broadly accurate, but the codebase currently includes additional production surfaces that matter for scalability and cost:
+
+- **Teacher/admin domain**: `src/app/(admin)` + `/api/admin/**` for folders/lessons/segments and translation jobs.
+- **Auth + role enforcement**: `src/middleware.ts` refreshes Supabase sessions and gates `/dashboard` and `/api/admin/*` to teacher/admin users.
+- **“Background” translation is in-process**: `/api/admin/translate/bulk` starts `processJobInBackground(...)` as a detached promise in the same Next.js runtime. This is **not a durable worker** on serverless platforms.
+
+---
+
+## 11. Constraints & Bottlenecks (Observed in Code)
+
+### 11a. Latency-critical synchronous paths
+
+- **`POST /api/analyze` (cache miss)** does: embedding → 2 RPC vector searches → LLM generation → returns full JSON. This compounds latency and increases timeout risk under load.
+- **`POST /api/transcriptions` (save path)** does: Groq transcription → DB insert → Storage upload → DB update, increasing tail latency and failure surface.
+- **`POST /api/ocr`** base64 encodes images and calls Gemini Vision synchronously (large payload, provider latency).
+
+### 11b. Token-cost drivers
+
+- RAG prompt includes **full KB chunk text** (up to 5 chunks) and **pretty-printed JSON** for past analyses. This can dominate prompt tokens vs the user sentence.
+
+### 11c. Provider + platform limits
+
+- External API rate limits (429) and quotas apply to **DeepSeek**, **Gemini**, **OpenAI embeddings**, **Groq**.
+- Next.js/serverless runtimes have **execution time limits**; detached promises may be terminated early (especially for “background jobs”).
+
+### 11d. Correctness & cache integrity risks
+
+- `hashSentence()` is a weak non-cryptographic hash (collision risk). Collisions can cause **wrong cache hits** (bad UX) and invalidate measurement of cache effectiveness.
+- Cache keys do not currently include **prompt/schema/model/KB versioning**, which risks serving stale outputs after prompt or schema changes.
+
+---
+
+## 12. Optimization Plan (Maximize Speed, Minimize Token Cost)
+
+### 12a. “Low effort / high ROI” changes
+
+- **Eliminate double embeddings** on LinguBreak cache writes: reuse the embedding computed during RAG retrieval instead of embedding again during `cacheAnalysis()`. This reduces both latency (background load) and embedding spend.
+- **Add a strict RAG token budget**:
+  - cap the total RAG context (KB + examples) by tokens
+  - prefer fewer, higher-similarity chunks over many weak matches
+  - compress past analyses to only the fields needed to guide formatting (avoid `JSON.stringify(..., null, 2)`).
+- **Tighten retrieval thresholds**:
+  - increase `minSimilarity` (or make it adaptive) to reduce irrelevant context and prompt bloat
+  - reduce `topK` when similarity is low or the token budget is hit.
+- **Introduce cache versioning**: include `prompt_version`, `schema_version`, and `kb_version/checksum` in cache lookup/write so changes don’t silently degrade behavior.
+
+### 12b. Caching strategy (cost + latency)
+
+- **3-tier caching for analyze**:
+  - L1: exact hash cache (existing `analyses`)
+  - L2: semantic cache (embedding similarity over approved analyses; only above a strict threshold)
+  - L3: full generation (LLM).
+- **Provider response caching**:
+  - cache embeddings for repeated identical sentences (or short normalized variants)
+  - cache translation of lesson segments (idempotent per segment + provider + prompt version).
+
+### 12c. Concurrency control & “bulkheads”
+
+- Add server-side caps per provider/endpoint (e.g., max concurrent `analyze`, max concurrent `bulk translate`), so one hot path cannot starve others.
+- Prefer **admission control** (fast fail or queue) over letting requests pile up and time out.
+
+### 12d. Prompt minimization techniques
+
+- **RAG context shaping**:
+  - include headings + 1–3 key paragraphs rather than full sections
+  - de-duplicate headings/boilerplate across chunks
+  - drop “relevance: 83%” style lines unless empirically beneficial.
+- **Late chunking / highlighting**:
+  - retrieve larger sections, but inject only the most relevant sentences at prompt time to reduce tokens.
+
+---
+
+## 13. Scalability & Operations (What We Need for Production Scale)
+
+### 13a. Durable background processing
+
+Replace in-process detached jobs with a durable worker model:
+
+- **Option A (Supabase-native)**: Edge Function(s) + jobs table + retries/backoff + idempotency.
+- **Option B (Queue + worker)**: managed queue (e.g., QStash/Redis/BullMQ) + separate worker deployment.
+
+Minimum required semantics:
+
+- **idempotency keys** per segment/job (safe retries)
+- **retry policy** with exponential backoff + jitter
+- **dead-letter** handling for persistent failures
+- **progress accounting** that doesn’t bloat a single JSON field (store per-segment results; aggregate on read).
+
+### 13b. Rate limiting & quotas
+
+- **Inbound**: per-IP (public endpoints), per-user/session (teacher tools), and per-route class (LLM-heavy vs light).
+- **Outbound**: provider-specific concurrency caps + circuit breakers to prevent cascading failures.
+
+### 13c. Observability (to control latency + cost)
+
+Add first-class telemetry:
+
+- **Metrics**: RPS, p50/p95/p99 latency per route, cache hit rate (L1/L2), token usage per provider, embedding call counts, provider 429 rates, Supabase RPC durations.
+- **Tracing**: request → embedding → RPC(s) → LLM call(s), with correlation IDs returned to clients for support.
+- **Logging**: structured JSON logs with redaction policy (no raw user text for admins by default; no secrets; sample high-volume logs).
+
+### 13d. SLOs (starter targets)
+
+- **Lesson read APIs** (cached): p95 < 300ms.
+- **Analyze**:
+  - cache hit: p95 < 400ms
+  - cache miss: prefer 202 “job accepted” within < 500ms; completion depends on provider latency.
+- **Bulk translate**: job acceptance < 500ms; progress updates every batch; completion time bounded by provider quotas.
+
+---
+
+## 14. “Better AI Engine” Options Beyond Current RAG
+
+The current design is a classic embedding + vector search + prompt injection RAG. For this product, quality/cost often improves more by **routing + compression** than by “more chunks”.
+
+### 14a. Hybrid retrieval (recommended next step)
+
+- Combine **vector search (pgvector)** with **lexical search (Postgres full-text / BM25-like ranking)** and merge results (e.g., reciprocal rank fusion).
+- Why it helps here: grammar KB content contains explicit terms (“relative clauses”, “articles”, “reported speech”) where lexical matching boosts recall and reduces irrelevant vector matches.
+
+### 14b. Topic routing (RAG + rules engine)
+
+- Add a lightweight “topic classifier” (cheap model or heuristics) to route queries to:
+  - a subset of KB categories/tags
+  - specialized prompts (articles vs tenses vs relative clauses)
+  - different retrieval depths (no retrieval for trivial sentences).
+
+### 14c. Reranking (late interaction)
+
+- Retrieve more candidates (e.g., top 20), then rerank to top 3–5 via:
+  - a small cross-encoder reranker (if hosting is acceptable), or
+  - a cheap LLM “select best passages” step with a strict token budget.
+
+### 14d. Fine-tuning / distillation (when scale justifies it)
+
+- For stable JSON outputs and a fixed pedagogy format, consider:
+  - distilling a smaller model (or fine-tuning) to reduce per-request tokens and improve determinism
+  - keeping RAG as “exception handler” only when confidence is low.
+
+### 14e. Semantic cache as an “engine”
+
+- Treat prior approved analyses as a first-class asset:
+  - semantic reuse above high similarity thresholds
+  - optionally regenerate only the Thai translation or only step 3/4 when needed.
+
