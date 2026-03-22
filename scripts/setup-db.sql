@@ -45,15 +45,22 @@ CREATE TABLE kb_chunks (
 
 -- Cached sentence analyses
 CREATE TABLE analyses (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  sentence        TEXT NOT NULL,
-  sentence_hash   TEXT NOT NULL,
-  embedding       vector(1536),
-  provider        TEXT NOT NULL,
-  result_json     JSONB NOT NULL,
-  status          TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'reviewed', 'approved')),
-  rag_chunks_used TEXT[],
-  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  sentence                TEXT NOT NULL,
+  sentence_hash           TEXT NOT NULL,
+  embedding               vector(1536),
+  provider                TEXT NOT NULL,
+  llm_model               TEXT,
+  embedding_model         TEXT,
+  embedding_dim           INT,
+  prompt_version          TEXT,
+  kb_version              TEXT,
+  result_json             JSONB NOT NULL,
+  status                  TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'reviewed', 'approved')),
+  rag_chunks_used         TEXT[],
+  retrieved_kb_chunk_ids  UUID[],
+  rag_trace_json          JSONB,
+  created_at              TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(sentence_hash)
 );
 

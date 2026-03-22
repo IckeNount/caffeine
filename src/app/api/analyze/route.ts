@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeSentence, AIProvider } from "@/features/lingubreak/lib/ai-providers";
+import { requireTeacher, AuthError } from "@/shared/lib/auth/auth";
 
+/** LinguBreak sentence analysis — teacher/admin only (uses third-party LLM + RAG). */
 export async function POST(request: NextRequest) {
   try {
+    await requireTeacher();
+
     const { sentence, provider = "deepseek" } = await request.json();
 
     if (!sentence || typeof sentence !== "string" || sentence.trim().length === 0) {
@@ -27,6 +31,12 @@ export async function POST(request: NextRequest) {
     const data = await analyzeSentence(sentence.trim(), selectedProvider);
     return NextResponse.json(data);
   } catch (error) {
+    if (error instanceof AuthError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status },
+      );
+    }
     console.error("AI Analysis Error:", error);
 
     const message =

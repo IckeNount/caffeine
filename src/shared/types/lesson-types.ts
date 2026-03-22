@@ -1,3 +1,8 @@
+import type {
+  AnalysisChunk,
+  AnalysisResult,
+} from "@/features/lingubreak/lib/schema";
+
 // ── Lesson Domain Types ──────────────────────────────────────────
 
 /** Folder / category that groups lessons */
@@ -6,6 +11,17 @@ export interface Folder {
   name: string;
   color: string | null;
 }
+
+/**
+ * Stored in `lesson_segments.grammar_breakdown` — same shape as LinguBreak
+ * `AnalysisResult`, plus optional teacher `notes`.
+ */
+export type GrammarBreakdown = AnalysisResult & {
+  notes?: string;
+};
+
+/** @deprecated Use AnalysisChunk; kept as alias for imports */
+export type GrammarChunk = AnalysisChunk;
 
 /** A single segment within a lesson */
 export interface LessonSegment {
@@ -16,20 +32,6 @@ export interface LessonSegment {
   grammar_breakdown: GrammarBreakdown | null;
   audio_start: number | null;
   audio_end: number | null;
-}
-
-/** Grammar breakdown JSONB shape — flexible for now, tighten later */
-export interface GrammarBreakdown {
-  chunks?: GrammarChunk[];
-  notes?: string;
-  [key: string]: unknown;
-}
-
-export interface GrammarChunk {
-  text: string;
-  label: string;
-  color?: string;
-  thai?: string;
 }
 
 /** Lesson summary (list view — no segments) */
@@ -52,6 +54,17 @@ export interface GrammarNote {
 }
 
 /** Full lesson with segments (detail view) */
+/** JSON-first lesson unit (scene / exercise) — optional; see `lesson_units` table */
+export interface LessonUnit {
+  id: string;
+  lesson_id: string;
+  sort_order: number;
+  unit_type: "scene" | "instruction" | "exercise" | "reading";
+  content_json: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface LessonDetail {
   id: string;
   title: string;
@@ -64,6 +77,8 @@ export interface LessonDetail {
   published_at: string | null;
   folder: Folder | null;
   segments: LessonSegment[];
+  /** Present when loaded from admin API */
+  units?: LessonUnit[];
 }
 
 // ── API Response Wrappers ────────────────────────────────────────

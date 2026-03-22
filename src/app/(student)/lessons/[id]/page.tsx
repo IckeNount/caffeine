@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -19,9 +19,12 @@ import {
   Languages,
 } from "lucide-react";
 import { useLesson } from "@/shared/hooks/useLesson";
-import type { LessonSegment, GrammarChunk } from "@/shared/types/lesson-types";
+import type { LessonSegment } from "@/shared/types/lesson-types";
+import type { AnalysisChunk } from "@/features/lingubreak/lib/schema";
+import { CHUNK_COLORS } from "@/features/lingubreak/lib/schema";
 import InteractiveText from "@/features/lesson-viewer/components/InteractiveText";
 import TutorSidebar from "@/features/lesson-viewer/components/TutorSidebar";
+import { findBreakdownForSelection } from "@/shared/lib/lessons/grammar-breakdown";
 
 // ── Difficulty Config ────────────────────────────────────────────
 const DIFFICULTY_CONFIG = {
@@ -76,31 +79,90 @@ function useLessonAudio(audioUrl: string | null) {
   return { isPlaying, currentTime, duration, toggle, seekTo, audioRef };
 }
 
-// ── Grammar Chunk Display ────────────────────────────────────────
-function GrammarChunkTag({ chunk }: { chunk: GrammarChunk }) {
+// ── Grammar Chunk Display (LinguBreak AnalysisChunk or legacy label chunks) ─
+const INLINE_CHUNK_COLORS: Record<
+  string,
+  { bg: string; accent: string }
+> = {
+  subject: { bg: "rgba(59,130,246,0.15)", accent: "#60A5FA" },
+  verb: { bg: "rgba(255,77,77,0.15)", accent: "#FF6B6B" },
+  object: { bg: "rgba(0,229,199,0.15)", accent: "#00E5C7" },
+  relative_clause: { bg: "rgba(34,197,94,0.15)", accent: "#4ADE80" },
+  prepositional: { bg: "rgba(245,158,11,0.15)", accent: "#FBBF24" },
+  modifier: { bg: "rgba(168,85,247,0.15)", accent: "#A855F7" },
+};
+
+type LegacyGrammarChunk = {
+  text: string;
+  label: string;
+  color?: string;
+  thai?: string;
+};
+
+function GrammarChunkTag({
+  chunk,
+}: {
+  chunk: AnalysisChunk | LegacyGrammarChunk;
+}) {
+  if ("type" in chunk && chunk.type) {
+    const colors = INLINE_CHUNK_COLORS[chunk.type] ?? {
+      bg: "rgba(200,200,200,0.1)",
+      accent: "#999",
+    };
+    const meta = CHUNK_COLORS[chunk.type];
+    return (
+      <span
+        className="inline-flex flex-col items-center gap-0.5 px-2.5 py-1.5 border-2 border-black text-xs"
+        style={{
+          backgroundColor: colors.bg,
+          boxShadow: "var(--shadow-brutal-sm)",
+        }}
+      >
+        <span className="font-semibold" style={{ color: colors.accent }}>
+          {chunk.text}
+        </span>
+        <span
+          className="text-[9px] font-heading uppercase tracking-widest"
+          style={{ color: colors.accent }}
+        >
+          {meta?.label ?? chunk.type}
+        </span>
+        {chunk.thai_explanation && (
+          <span
+            className="text-[10px] font-sarabun"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {chunk.thai_explanation}
+          </span>
+        )}
+      </span>
+    );
+  }
+
+  const legacy = chunk as LegacyGrammarChunk;
   return (
     <span
       className="inline-flex flex-col items-center gap-0.5 px-2.5 py-1.5 border-2 border-black text-xs"
       style={{
-        backgroundColor: (chunk.color ?? "var(--accent-gold)") + "20",
+        backgroundColor: (legacy.color ?? "var(--accent-gold)") + "20",
         boxShadow: "var(--shadow-brutal-sm)",
       }}
     >
       <span className="font-semibold" style={{ color: "var(--text-primary)" }}>
-        {chunk.text}
+        {legacy.text}
       </span>
       <span
         className="text-[9px] font-heading uppercase tracking-widest"
-        style={{ color: chunk.color ?? "var(--accent-gold)" }}
+        style={{ color: legacy.color ?? "var(--accent-gold)" }}
       >
-        {chunk.label}
+        {legacy.label}
       </span>
-      {chunk.thai && (
+      {legacy.thai && (
         <span
           className="text-[10px] font-sarabun"
           style={{ color: "var(--text-muted)" }}
         >
-          {chunk.thai}
+          {legacy.thai}
         </span>
       )}
     </span>
@@ -127,7 +189,11 @@ const SegmentCard = React.memo(function SegmentCard({
 }) {
   const [showGrammar, setShowGrammar] = useState(false);
   const breakdown = segment.grammar_breakdown;
-  const hasGrammar = breakdown && (breakdown.chunks?.length || breakdown.notes);
+  const hasGrammar =
+    breakdown &&
+    (Boolean(breakdown.chunks?.length) ||
+      Boolean(breakdown.notes) ||
+      Boolean(breakdown.pedagogical_steps?.length));
 
   return (
     <div
@@ -345,6 +411,11 @@ export default function LessonDetailPage() {
     setSelectedSentence(null);
   }, []);
 
+  const precomputedBreakdown = useMemo(
+    () => findBreakdownForSelection(lesson?.segments ?? [], selectedSentence),
+    [lesson?.segments, selectedSentence],
+  );
+
   // Build audio URL from Supabase storage path
   const audioUrl = lesson?.audio_path
     ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${lesson.audio_path}`
@@ -556,6 +627,7 @@ export default function LessonDetailPage() {
               <TutorSidebar
                 selectedWord={selectedWord}
                 selectedSentence={selectedSentence}
+                precomputedBreakdown={precomputedBreakdown}
                 grammarNotes={lesson.grammar_notes || []}
                 onClear={handleClearSelection}
               />

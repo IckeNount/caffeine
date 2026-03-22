@@ -26,6 +26,11 @@ interface TutorSidebarProps {
   selectedWord: string | null;
   /** The sentence to analyze (set from double-click) */
   selectedSentence: string | null;
+  /**
+   * Teacher-authored breakdown for the selected sentence (student path — no LLM).
+   * When set, `/api/analyze` is not called.
+   */
+  precomputedBreakdown: AnalysisResult | null;
   /** Grammar notes from the teacher */
   grammarNotes: GrammarNote[];
   /** Callback to clear selected state */
@@ -48,6 +53,7 @@ const CHUNK_INLINE_COLORS: Record<string, { bg: string; text: string }> = {
 export default function TutorSidebar({
   selectedWord,
   selectedSentence,
+  precomputedBreakdown,
   grammarNotes,
   onClear,
 }: TutorSidebarProps) {
@@ -59,7 +65,15 @@ export default function TutorSidebar({
   const [dictError, setDictError] = useState<string | null>(null);
 
   // Sentence analysis
-  const { result: analysisResult, loading: analysisLoading, error: analysisError, analyze } = useAnalyze();
+  const {
+    result: analysisResult,
+    loading: analysisLoading,
+    error: analysisError,
+    analyze,
+    reset: resetAnalysis,
+  } = useAnalyze();
+
+  const displayResult = precomputedBreakdown ?? analysisResult;
 
   // Dictionary lookup function
   const lookupWord = useCallback(async (word: string) => {
@@ -263,7 +277,7 @@ export default function TutorSidebar({
         {/* ── Breakdown Tab ───────────────────────────────────── */}
         {activeTab === "breakdown" && (
           <div className="space-y-4">
-            {analysisLoading && (
+            {!precomputedBreakdown && analysisLoading && (
               <div className="flex flex-col items-center py-8 gap-2">
                 <Loader2 size={24} className="animate-spin" style={{ color: "#8B5CF6" }} />
                 <span className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -276,7 +290,7 @@ export default function TutorSidebar({
                 <p className="text-sm" style={{ color: "#EF4444" }}>{analysisError}</p>
               </div>
             )}
-            {!analysisLoading && !analysisError && !analysisResult && (
+            {!analysisLoading && !analysisError && !displayResult && (
               <div className="text-center py-10">
                 <Languages size={28} className="mx-auto mb-3" style={{ color: "var(--text-muted)", opacity: 0.3 }} />
                 <p className="text-sm" style={{ color: "var(--text-muted)" }}>
@@ -284,9 +298,9 @@ export default function TutorSidebar({
                 </p>
               </div>
             )}
-            {analysisResult && (
+            {displayResult && (
               <SentenceBreakdown
-                result={analysisResult}
+                result={displayResult}
                 sentence={selectedSentence || ""}
                 onClear={onClear}
               />

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacher, AuthError } from "@/shared/lib/auth/auth";
 import { supabaseAdmin } from "@/shared/lib/db/supabase";
+import type { PublishedLessonPayload } from "@/shared/lib/lessons/publish-payload";
+import type { GrammarNote } from "@/shared/types/lesson-types";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -69,9 +71,46 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
       updateData.status = body.status;
 
-      // Set published_at timestamp when publishing
       if (body.status === "published") {
-        updateData.published_at = new Date().toISOString();
+        const now = new Date().toISOString();
+        updateData.published_at = now;
+
+        const { data: meta, error: metaErr } = await supabaseAdmin
+          .from("lessons")
+          .select("published_version, grammar_notes")
+          .eq("id", id)
+          .eq("created_by", profile.id)
+          .single();
+
+        if (metaErr || !meta) {
+          return NextResponse.json({ error: "Lesson not found" }, { status: 404 });
+        }
+
+        const { data: segs, error: segErr } = await supabaseAdmin
+          .from("lesson_segments")
+          .select(
+            "id, sort_order, original_text, thai_translation, grammar_breakdown, audio_start, audio_end",
+          )
+          .eq("lesson_id", id)
+          .order("sort_order", { ascending: true });
+
+        if (segErr) throw segErr;
+
+        const nextVersion = (meta.published_version ?? 0) + 1;
+        const notesForSnapshot: GrammarNote[] | null =
+          body.grammar_notes !== undefined
+            ? body.grammar_notes
+            : (meta.grammar_notes as GrammarNote[] | null) ?? null;
+
+        const payload: PublishedLessonPayload = {
+          version: nextVersion,
+          snapshot_at: now,
+          grammar_notes: notesForSnapshot,
+          segments: segs ?? [],
+        };
+
+        updateData.published_version = nextVersion;
+        updateData.published_payload = payload;
       }
     }
 

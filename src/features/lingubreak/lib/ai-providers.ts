@@ -3,7 +3,13 @@ import {
   SchemaType,
 } from "@google/generative-ai";
 import OpenAI from "openai";
+import { getKbVersion, LINGUBREAK_PROMPT_VERSION } from "@/config/rag";
+import { EMBEDDING_DIM, EMBEDDING_MODEL } from "@/shared/lib/rag/embeddings";
+import type { RagTraceJson } from "@/shared/lib/rag/retriever";
 import { AnalysisResult } from "./schema";
+
+const GEMINI_ANALYSIS_MODEL = "gemini-2.5-flash";
+const DEEPSEEK_ANALYSIS_MODEL = "deepseek-chat";
 
 // ── Provider Types ──────────────────────────────────────────────────
 
@@ -71,17 +77,26 @@ Respond with a JSON object containing:
 
 let ragAvailable = false;
 
-async function getRAGContext(sentence: string): Promise<{ context: string; chunkIds: string[] }> {
+async function getRAGContext(sentence: string): Promise<{
+  context: string;
+  chunkIds: string[];
+  embedding: number[] | null;
+  ragTraceJson: RagTraceJson | null;
+}> {
   try {
-    // Dynamically import to avoid crashes when Supabase isn't configured
     const { buildRAGContext } = await import("@/shared/lib/rag/retriever");
     ragAvailable = true;
-    return await buildRAGContext(sentence);
+    const built = await buildRAGContext(sentence);
+    return {
+      context: built.context,
+      chunkIds: built.chunkIds,
+      embedding: built.embedding,
+      ragTraceJson: built.ragTraceJson,
+    };
   } catch (err) {
-    // RAG failed — fall back to prompt-only mode
     const reason = err instanceof Error ? err.message : "unknown error";
     console.warn(`⚠️  RAG unavailable (${reason}) — running in prompt-only mode`);
-    return { context: "", chunkIds: [] };
+    return { context: "", chunkIds: [], embedding: null, ragTraceJson: null };
   }
 }
 
@@ -105,36 +120,64 @@ async function getCachedAnalysis(sentenceHash: string): Promise<AnalysisResult |
   return null;
 }
 
+function llmModelForProvider(provider: AIProvider): string {
+  return provider === "gemini" ? GEMINI_ANALYSIS_MODEL : DEEPSEEK_ANALYSIS_MODEL;
+}
+
+/** UUID strings from kb_chunks — safe for Postgres uuid[] when valid. */
+function chunkIdsToUuidArray(chunkIds: string[]): string[] | null {
+  const uuidRe =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const allValid = chunkIds.length > 0 && chunkIds.every((id) => uuidRe.test(id));
+  return allValid ? chunkIds : null;
+}
+
 async function cacheAnalysis(
   sentence: string,
   sentenceHash: string,
   provider: AIProvider,
   result: AnalysisResult,
-  chunkIds: string[]
+  chunkIds: string[],
+  embeddingFromRag: number[] | null,
+  ragTraceJson: RagTraceJson | null
 ): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/shared/lib/db/supabase");
 
-    // Try to get embedding, but don't block caching if it fails
-    let embedding: number[] | null = null;
-    try {
-      const { embedText } = await import("@/shared/lib/rag/embeddings");
-      embedding = await embedText(sentence);
-    } catch {
-      // Embedding unavailable (e.g. Gemini timeout) — cache without it
+    let embedding: number[] | null = embeddingFromRag;
+    if (!embedding) {
+      try {
+        const { embedText } = await import("@/shared/lib/rag/embeddings");
+        embedding = await embedText(sentence);
+      } catch {
+        embedding = null;
+      }
     }
 
-    await supabaseAdmin.from("analyses").upsert({
+    const retrievedKb = chunkIdsToUuidArray(chunkIds);
+
+    const row: Record<string, unknown> = {
       sentence,
       sentence_hash: sentenceHash,
       embedding: embedding ? JSON.stringify(embedding) : null,
       provider,
+      llm_model: llmModelForProvider(provider),
+      embedding_model: EMBEDDING_MODEL,
+      embedding_dim: EMBEDDING_DIM,
+      prompt_version: LINGUBREAK_PROMPT_VERSION,
+      kb_version: getKbVersion(),
       result_json: result,
       rag_chunks_used: chunkIds,
+      retrieved_kb_chunk_ids: retrievedKb,
+      rag_trace_json: ragTraceJson,
       status: "draft",
-    }, { onConflict: "sentence_hash" });
+    };
+
+    await supabaseAdmin.from("analyses").upsert(row, {
+      onConflict: "sentence_hash",
+    });
   } catch {
-    // Caching failed — non-critical, continue
+    // Caching failed — non-critical
   }
 }
 
@@ -158,7 +201,7 @@ async function analyzeWithDeepSeek(sentence: string, ragContext: string): Promis
   });
 
   const response = await client.chat.completions.create({
-    model: "deepseek-chat",
+    model: DEEPSEEK_ANALYSIS_MODEL,
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: USER_PROMPT_TEMPLATE(sentence, ragContext) },
@@ -241,7 +284,7 @@ const geminiSchema = {
 async function analyzeWithGemini(sentence: string, ragContext: string): Promise<AnalysisResult> {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
+    model: GEMINI_ANALYSIS_MODEL,
     systemInstruction: SYSTEM_PROMPT,
     generationConfig: {
       responseMimeType: "application/json",
@@ -276,7 +319,12 @@ export async function analyzeSentence(
 
   // 2. Retrieve RAG context (grammar rules, past examples)
   const t2 = Date.now();
-  const { context: ragContext, chunkIds } = await getRAGContext(sentence);
+  const {
+    context: ragContext,
+    chunkIds,
+    embedding: ragEmbedding,
+    ragTraceJson,
+  } = await getRAGContext(sentence);
   console.log(`⏱️  RAG total: ${Date.now() - t2}ms`);
 
   // 3. Generate with chosen provider
@@ -295,7 +343,15 @@ export async function analyzeSentence(
   console.log(`⏱️  LLM (${provider}): ${Date.now() - t3}ms`);
 
   // 4. Cache the result (async, non-blocking)
-  cacheAnalysis(sentence, sentenceHash, provider, result, chunkIds).catch(() => {});
+  cacheAnalysis(
+    sentence,
+    sentenceHash,
+    provider,
+    result,
+    chunkIds,
+    ragEmbedding,
+    ragTraceJson
+  ).catch(() => {});
 
   console.log(`⏱️  Total analyze: ${Date.now() - totalStart}ms`);
   return result;

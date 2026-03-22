@@ -3,7 +3,10 @@ import OpenAI from "openai";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || "" });
 
 /** Embedding model — OpenAI text-embedding-3-small (1536 dimensions) */
-const EMBEDDING_MODEL = "text-embedding-3-small";
+export const EMBEDDING_MODEL = "text-embedding-3-small";
+
+/** Stored vector dimension (must match pgvector column + ingest script). */
+export const EMBEDDING_DIM = 1536;
 
 /** Timeout (ms) for embedding API calls — fail fast when API is unreachable */
 const EMBED_TIMEOUT_MS = 10_000;

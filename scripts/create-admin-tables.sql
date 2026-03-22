@@ -113,6 +113,45 @@ CREATE TABLE IF NOT EXISTS translation_jobs (
   completed_at TIMESTAMPTZ
 );
 
+-- 6. Lesson extensions (publish snapshots + teacher notes)
+ALTER TABLE lessons ADD COLUMN IF NOT EXISTS grammar_notes JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE lessons ADD COLUMN IF NOT EXISTS published_payload JSONB;
+ALTER TABLE lessons ADD COLUMN IF NOT EXISTS published_version INT NOT NULL DEFAULT 0;
+
+-- 7. Segment ↔ analysis bridge (authoring audit)
+-- Requires `analyses` from scripts/setup-db.sql — run setup-db before this script.
+CREATE TABLE IF NOT EXISTS lesson_segment_analyses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lesson_segment_id UUID NOT NULL REFERENCES lesson_segments(id) ON DELETE CASCADE,
+  analysis_id UUID NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(lesson_segment_id, analysis_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_lesson_segment_analyses_segment
+  ON lesson_segment_analyses(lesson_segment_id);
+CREATE INDEX IF NOT EXISTS idx_lesson_segment_analyses_analysis
+  ON lesson_segment_analyses(analysis_id);
+
+-- 8. JSON-first lesson units (scenes, exercises)
+CREATE TABLE IF NOT EXISTS lesson_units (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lesson_id UUID NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  sort_order INT NOT NULL DEFAULT 0,
+  unit_type TEXT NOT NULL CHECK (unit_type IN ('scene', 'instruction', 'exercise', 'reading')),
+  content_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lesson_units_lesson_id ON lesson_units(lesson_id);
+CREATE INDEX IF NOT EXISTS idx_lesson_units_sort ON lesson_units(lesson_id, sort_order);
+
+DROP TRIGGER IF EXISTS lesson_units_updated_at ON lesson_units;
+CREATE TRIGGER lesson_units_updated_at
+  BEFORE UPDATE ON lesson_units
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 -- =============================================================================
 -- Row Level Security (RLS)
 -- =============================================================================
@@ -122,6 +161,8 @@ ALTER TABLE folders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lessons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lesson_segments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE translation_jobs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lesson_segment_analyses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lesson_units ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: users can read their own profile, teachers/admins can read all
 CREATE POLICY "Users can view own profile"
@@ -165,6 +206,40 @@ CREATE POLICY "Anyone can view segments of published lessons"
 -- Translation jobs: teachers see their own
 CREATE POLICY "Teachers can manage own translation jobs"
   ON translation_jobs FOR ALL USING (auth.uid() = created_by);
+
+DROP POLICY IF EXISTS "Teachers manage segment-analysis links for own lessons" ON lesson_segment_analyses;
+CREATE POLICY "Teachers manage segment-analysis links for own lessons"
+  ON lesson_segment_analyses FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM lesson_segments ls
+      JOIN lessons l ON l.id = ls.lesson_id
+      WHERE ls.id = lesson_segment_analyses.lesson_segment_id
+        AND l.created_by = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Teachers CRUD units for own lessons" ON lesson_units;
+CREATE POLICY "Teachers CRUD units for own lessons"
+  ON lesson_units FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM lessons l
+      WHERE l.id = lesson_units.lesson_id
+        AND l.created_by = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "Anyone can view units of published lessons" ON lesson_units;
+CREATE POLICY "Anyone can view units of published lessons"
+  ON lesson_units FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM lessons l
+      WHERE l.id = lesson_units.lesson_id
+        AND l.status = 'published'
+    )
+  );
 
 -- =============================================================================
 -- Indexes

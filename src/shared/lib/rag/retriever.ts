@@ -1,5 +1,12 @@
 import { supabaseAdmin } from "@/shared/lib/db/supabase";
+import { getRagConfig } from "@/config/rag";
 import { embedText } from "./embeddings";
+import {
+  dedupeKbChunks,
+  formatKbContextSection,
+  formatCompactFewShotSection,
+  type KbChunkForContext,
+} from "./format-context";
 
 interface RetrievedChunk {
   id: string;
@@ -17,6 +24,16 @@ interface RetrievedAnalysis {
   similarity: number;
 }
 
+export interface RagTraceJson {
+  kb_chunk_ids: string[];
+  kb_chunk_count: number;
+  past_analysis_count: number;
+  kb_context_char_estimate: number;
+  few_shot_char_estimate: number;
+  embed_ms: number;
+  search_ms: number;
+}
+
 /**
  * Retrieve relevant knowledge base chunks for a given sentence.
  * Accepts a pre-computed embedding to avoid redundant API calls.
@@ -25,14 +42,15 @@ export async function retrieveContext(
   embedding: number[],
   options: {
     maxChunks?: number;
-    category?: string;
+    category?: string | null;
     minSimilarity?: number;
   } = {}
 ): Promise<RetrievedChunk[]> {
+  const cfg = getRagConfig();
   const {
-    maxChunks = 5,
+    maxChunks = cfg.maxKbChunks,
     category = null,
-    minSimilarity = 0.3,
+    minSimilarity = cfg.minKbSimilarity,
   } = options;
 
   const { data, error } = await supabaseAdmin.rpc("match_kb_chunks", {
@@ -53,15 +71,17 @@ export async function retrieveContext(
 
 /**
  * Retrieve similar past analyses (approved by teachers).
- * Accepts a pre-computed embedding to avoid redundant API calls.
  */
 export async function retrieveSimilarAnalyses(
   embedding: number[],
-  maxResults: number = 3
+  maxResults?: number
 ): Promise<RetrievedAnalysis[]> {
+  const cfg = getRagConfig();
+  const cap = maxResults ?? cfg.maxPastAnalyses;
+
   const { data, error } = await supabaseAdmin.rpc("match_analyses", {
     query_embedding: JSON.stringify(embedding),
-    match_count: maxResults,
+    match_count: cap,
   });
 
   if (error) {
@@ -72,53 +92,71 @@ export async function retrieveSimilarAnalyses(
   return data || [];
 }
 
-/**
- * Build the RAG-augmented context string to inject into the LLM prompt.
- * Combines grammar rules, error patterns, and past examples.
- * 
- * Optimization: embeds the sentence ONCE and shares the vector
- * across both KB retrieval and analysis retrieval.
- */
-export async function buildRAGContext(sentence: string): Promise<{
+export interface BuildRAGContextResult {
   context: string;
   chunkIds: string[];
-}> {
-  // 1. Embed the sentence ONCE (saves a full Gemini API round-trip)
+  embedding: number[];
+  ragTraceJson: RagTraceJson;
+}
+
+/**
+ * Build the RAG-augmented context string to inject into the LLM prompt.
+ * Embeds the sentence once; retrieves KB + past analyses in parallel.
+ */
+export async function buildRAGContext(sentence: string): Promise<BuildRAGContextResult> {
+  const cfg = getRagConfig();
+
   const t0 = Date.now();
   const embedding = await embedText(sentence);
-  console.log(`⏱️  RAG embed: ${Date.now() - t0}ms`);
+  const embedMs = Date.now() - t0;
+  console.log(`⏱️  RAG embed: ${embedMs}ms`);
 
-  // 2. Retrieve KB chunks + past analyses in parallel (using shared embedding)
   const t1 = Date.now();
-  const [kbChunks, pastAnalyses] = await Promise.all([
-    retrieveContext(embedding, { maxChunks: 5, minSimilarity: 0.3 }),
-    retrieveSimilarAnalyses(embedding, 2),
+  const [kbRaw, pastAnalyses] = await Promise.all([
+    retrieveContext(embedding, {
+      maxChunks: cfg.maxKbChunks,
+      minSimilarity: cfg.minKbSimilarity,
+    }),
+    retrieveSimilarAnalyses(embedding, cfg.maxPastAnalyses),
   ]);
-  console.log(`⏱️  RAG search: ${Date.now() - t1}ms (${kbChunks.length} KB chunks, ${pastAnalyses.length} past analyses)`);
+  const searchMs = Date.now() - t1;
 
-  const chunkIds = kbChunks.map((c) => c.id);
+  const kbDeduped = dedupeKbChunks(kbRaw);
+  const kbForCtx: KbChunkForContext[] = kbDeduped.map((c) => ({
+    id: c.id,
+    content: c.content,
+    document_title: c.document_title,
+    document_category: c.document_category,
+    similarity: c.similarity,
+  }));
 
-  let context = "";
+  const kbSection = formatKbContextSection(kbForCtx, {
+    maxCharsPerChunk: cfg.maxKbCharsPerChunk,
+    maxTotalChars: cfg.maxKbContextChars,
+  });
 
-  // Add grammar rules and patterns
-  if (kbChunks.length > 0) {
-    context += "\n\n=== RELEVANT GRAMMAR RULES & PATTERNS ===\n";
-    context += "Use these rules to ensure accurate analysis:\n\n";
-    for (const chunk of kbChunks) {
-      context += `--- [${chunk.document_category}: ${chunk.document_title}] (relevance: ${(chunk.similarity * 100).toFixed(0)}%) ---\n`;
-      context += chunk.content + "\n\n";
-    }
-  }
+  const fewShotSection = formatCompactFewShotSection(
+    pastAnalyses,
+    cfg.maxFewShotChars,
+    cfg.minAnalysisSimilarity
+  );
 
-  // Add past approved examples as few-shot
-  if (pastAnalyses.length > 0) {
-    context += "\n=== APPROVED EXAMPLE ANALYSES ===\n";
-    context += "Follow the style and accuracy of these teacher-approved breakdowns:\n\n";
-    for (const analysis of pastAnalyses) {
-      context += `Sentence: "${analysis.sentence}"\n`;
-      context += `Analysis: ${JSON.stringify(analysis.result_json, null, 2)}\n\n`;
-    }
-  }
+  const context = kbSection + fewShotSection;
+  const chunkIds = kbForCtx.map((c) => c.id);
 
-  return { context, chunkIds };
+  console.log(
+    `⏱️  RAG search: ${searchMs}ms (${kbForCtx.length} KB chunks, ${pastAnalyses.length} past analyses)`
+  );
+
+  const ragTraceJson: RagTraceJson = {
+    kb_chunk_ids: chunkIds,
+    kb_chunk_count: kbForCtx.length,
+    past_analysis_count: pastAnalyses.length,
+    kb_context_char_estimate: kbSection.length,
+    few_shot_char_estimate: fewShotSection.length,
+    embed_ms: embedMs,
+    search_ms: searchMs,
+  };
+
+  return { context, chunkIds, embedding, ragTraceJson };
 }

@@ -26,6 +26,7 @@ export function useAnalyze(): UseAnalyzeReturn {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ sentence, provider }),
       });
 
