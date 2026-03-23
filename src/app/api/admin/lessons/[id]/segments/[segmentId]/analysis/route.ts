@@ -3,7 +3,7 @@ import { requireTeacher, AuthError } from "@/shared/lib/auth/auth";
 import { supabaseAdmin } from "@/shared/lib/db/supabase";
 
 interface RouteParams {
-  params: Promise<{ lessonId: string; segmentId: string }>;
+  params: Promise<{ id: string; segmentId: string }>;
 }
 
 /**
@@ -12,7 +12,7 @@ interface RouteParams {
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const { profile } = await requireTeacher();
-    const { lessonId, segmentId } = await params;
+    const { id: lessonId, segmentId } = await params;
     const { analysis_id } = await request.json();
 
     if (!analysis_id || typeof analysis_id !== "string") {
