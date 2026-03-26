@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
+import { middlewareEnv } from "@/env/middleware-env";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -16,8 +17,8 @@ export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    middlewareEnv.NEXT_PUBLIC_SUPABASE_URL,
+    middlewareEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
@@ -81,8 +82,8 @@ export async function middleware(request: NextRequest) {
 
   // ── 4. Verify teacher role ────────────────────────────────────────
   const adminClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    middlewareEnv.NEXT_PUBLIC_SUPABASE_URL,
+    middlewareEnv.SUPABASE_SERVICE_ROLE_KEY,
   );
 
   const { data: profile } = await adminClient

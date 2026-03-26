@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Languages,
 } from "lucide-react";
+import { publicEnv } from "@/env/public";
 import { useLesson } from "@/shared/hooks/useLesson";
 import type { LessonSegment } from "@/shared/types/lesson-types";
 import type { AnalysisChunk } from "@/features/lingubreak/lib/schema";
@@ -418,7 +419,7 @@ export default function LessonDetailPage() {
 
   // Build audio URL from Supabase storage path
   const audioUrl = lesson?.audio_path
-    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${lesson.audio_path}`
+    ? `${publicEnv.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${lesson.audio_path}`
     : null;
 
   const { isPlaying, currentTime, duration, toggle, seekTo } =
