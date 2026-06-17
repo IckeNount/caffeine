@@ -103,7 +103,7 @@ function LessonCard({ lesson }: { lesson: Lesson }) {
       </div>
 
       {/* Tags */}
-      {lesson.tags && lesson.tags.length > 0 && (
+      {Array.isArray(lesson.tags) && lesson.tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {lesson.tags.slice(0, 4).map((tag) => (
             <span

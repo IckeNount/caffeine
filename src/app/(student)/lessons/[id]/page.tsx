@@ -426,13 +426,14 @@ export default function LessonDetailPage() {
     useLessonAudio(audioUrl);
 
   // Determine which segment is currently active based on audio time
-  const activeSegmentIndex = lesson?.segments.findIndex(
+  const segments = lesson?.segments ?? [];
+  const activeSegmentIndex = segments.findIndex(
     (seg) =>
       seg.audio_start != null &&
       seg.audio_end != null &&
       currentTime >= seg.audio_start &&
       currentTime < seg.audio_end,
-  ) ?? -1;
+  );
 
   const publishedDate = lesson?.published_at
     ? new Date(lesson.published_at).toLocaleDateString("th-TH", {
@@ -554,7 +555,7 @@ export default function LessonDetailPage() {
               >
                 <span className="flex items-center gap-1">
                   <Layers className="w-3.5 h-3.5" />
-                  {lesson.segments.length} segments
+                  {segments.length} segments
                 </span>
                 {publishedDate && (
                   <span className="flex items-center gap-1">
@@ -565,7 +566,7 @@ export default function LessonDetailPage() {
               </div>
 
               {/* Tags */}
-              {lesson.tags && lesson.tags.length > 0 && (
+              {Array.isArray(lesson.tags) && lesson.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {lesson.tags.map((tag) => (
                     <span
@@ -601,7 +602,7 @@ export default function LessonDetailPage() {
                 Lesson Content
               </h2>
               <div className="space-y-4 stagger-children">
-                {lesson.segments.map((segment, i) => (
+                {segments.map((segment, i) => (
                   <SegmentCard
                     key={segment.id}
                     segment={segment}

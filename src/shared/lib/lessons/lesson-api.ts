@@ -22,10 +22,22 @@ export async function fetchLessons(
   const res = await fetch(url.toString());
 
   if (!res.ok) {
-    throw new Error(`Failed to fetch lessons: ${res.status}`);
+    const raw = await res.text();
+    let detail = "";
+    try {
+      const body = JSON.parse(raw) as { error?: string };
+      if (body?.error) detail = `: ${body.error}`;
+    } catch {
+      if (raw) detail = `: ${raw.slice(0, 200)}`;
+    }
+    throw new Error(`Failed to fetch lessons (${res.status})${detail}`);
   }
 
-  return res.json();
+  const data = (await res.json()) as LessonsListResponse;
+  return {
+    lessons: Array.isArray(data.lessons) ? data.lessons : [],
+    total: typeof data.total === "number" ? data.total : null,
+  };
 }
 
 /**

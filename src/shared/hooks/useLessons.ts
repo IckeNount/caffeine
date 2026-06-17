@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchLessons } from "@/shared/lib/lessons/lesson-api";
 import type {
   Lesson,
@@ -26,6 +26,8 @@ export function useLessons(params?: LessonsQueryParams) {
     error: null,
   });
 
+  const fetchGen = useRef(0);
+
   // Serialise params into a stable dep key
   const paramKey = JSON.stringify({
     folder_id: params?.folder_id ?? null,
@@ -34,16 +36,22 @@ export function useLessons(params?: LessonsQueryParams) {
   });
 
   const load = useCallback(async () => {
+    const id = ++fetchGen.current;
     setState((prev) => ({ ...prev, isLoading: true, error: null }));
     try {
       const data = await fetchLessons(params);
+      if (id !== fetchGen.current) return;
+      const lessons = Array.isArray(data.lessons) ? data.lessons : [];
+      const total =
+        typeof data.total === "number" ? data.total : lessons.length;
       setState({
-        lessons: data.lessons,
-        total: data.total ?? 0,
+        lessons,
+        total,
         isLoading: false,
         error: null,
       });
     } catch (err) {
+      if (id !== fetchGen.current) return;
       setState((prev) => ({
         ...prev,
         isLoading: false,
@@ -55,6 +63,9 @@ export function useLessons(params?: LessonsQueryParams) {
 
   useEffect(() => {
     load();
+    return () => {
+      fetchGen.current++;
+    };
   }, [load]);
 
   return { ...state, refetch: load };
