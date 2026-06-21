@@ -8,6 +8,8 @@ export interface UserProfile {
   display_name: string;
   avatar_url: string | null;
   role: UserRole;
+  gemini_api_key: string | null;
+  deepseek_api_key: string | null;
   created_at: string;
   updated_at: string;
 }

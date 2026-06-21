@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   FolderOpen,
   BookOpen,
+  Settings,
   LogOut,
   ChevronRight,
   Menu,
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/folders", label: "Folders", icon: FolderOpen },
   { href: "/dashboard/lessons", label: "Lessons", icon: BookOpen },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
 function Sidebar({

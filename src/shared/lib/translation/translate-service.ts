@@ -15,10 +15,12 @@ export interface TranslationResult {
 
 /**
  * Translate a single English sentence to Thai using the specified provider.
+ * Pass `apiKey` to use a teacher's stored key; falls back to the server env var.
  */
 export async function translateSentence(
   text: string,
   provider: TranslationProvider = "gemini",
+  apiKey?: string,
 ): Promise<TranslationResult> {
   const cleanText = text.trim();
   if (!cleanText) {
@@ -26,17 +28,17 @@ export async function translateSentence(
   }
 
   if (provider === "gemini") {
-    return translateWithGemini(cleanText);
+    return translateWithGemini(cleanText, apiKey);
   } else {
-    return translateWithDeepSeek(cleanText);
+    return translateWithDeepSeek(cleanText, apiKey);
   }
 }
 
-async function translateWithGemini(text: string): Promise<TranslationResult> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
+async function translateWithGemini(text: string, apiKey?: string): Promise<TranslationResult> {
+  const key = apiKey || process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("No Gemini API key configured. Add yours in Dashboard → Settings.");
 
-  const genAI = new GoogleGenerativeAI(apiKey);
+  const genAI = new GoogleGenerativeAI(key);
   const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash-preview-04-17",
     generationConfig: {
@@ -72,15 +74,15 @@ Text: "${text}"`;
   };
 }
 
-async function translateWithDeepSeek(text: string): Promise<TranslationResult> {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) throw new Error("Missing DEEPSEEK_API_KEY");
+async function translateWithDeepSeek(text: string, apiKey?: string): Promise<TranslationResult> {
+  const key = apiKey || process.env.DEEPSEEK_API_KEY;
+  if (!key) throw new Error("No DeepSeek API key configured. Add yours in Dashboard → Settings.");
 
   const response = await fetch("https://api.deepseek.com/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
       model: "deepseek-chat",

@@ -80,10 +80,12 @@ export async function POST(request: NextRequest) {
       throw jobError || new Error("Failed to create job");
     }
 
-    // Trigger background processing via Supabase Edge Function
-    // For now, process inline with a smaller batch approach
-    // TODO: Replace with actual Supabase Edge Function invocation when deployed
-    processJobInBackground(job.id, segments, selectedProvider).catch((err) => {
+    const teacherKeys = {
+      geminiApiKey: profile.gemini_api_key ?? undefined,
+      deepseekApiKey: profile.deepseek_api_key ?? undefined,
+    };
+
+    processJobInBackground(job.id, segments, selectedProvider, teacherKeys).catch((err) => {
       console.error(`Background job ${job.id} failed:`, err);
     });
 
@@ -120,8 +122,10 @@ async function processJobInBackground(
   jobId: string,
   segments: { id: string; original_text: string }[],
   provider: TranslationProvider,
+  keys: { geminiApiKey?: string; deepseekApiKey?: string } = {},
 ) {
   const { translateSentence } = await import("@/shared/lib/translation");
+  const apiKey = provider === "gemini" ? keys.geminiApiKey : keys.deepseekApiKey;
 
   // Mark job as processing
   await supabaseAdmin
@@ -145,7 +149,7 @@ async function processJobInBackground(
       const batch = segments.slice(i, i + BATCH_SIZE);
 
       const batchResults = await Promise.allSettled(
-        batch.map((seg) => translateSentence(seg.original_text, provider)),
+        batch.map((seg) => translateSentence(seg.original_text, provider, apiKey)),
       );
 
       for (let j = 0; j < batchResults.length; j++) {

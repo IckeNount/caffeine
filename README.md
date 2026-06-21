@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Caffeine
 
-## Getting Started
+AI-powered English learning tools for Thai students. Teachers create and publish interactive lessons; students read them with built-in sentence analysis, dictionary lookup, and Thai translations.
 
-First, run the development server:
+## What it does
+
+**For students (public, no login)**
+- Browse and read published lessons
+- Click any sentence to see a grammar breakdown in Thai logic
+- Inline word definitions with Thai translations
+
+**For teachers (Google SSO)**
+- Create lessons organized into folders
+- Add text segments and run AI grammar analysis (LinguBreak)
+- Bulk-translate segments to Thai via Gemini or DeepSeek
+- Publish lessons to students
+- Store personal API keys in Settings to use your own quota
+
+## Tech stack
+
+- **Framework** — Next.js 16 (App Router)
+- **Database / Auth** — Supabase (Postgres + Google OAuth)
+- **AI** — Gemini 2.5 Flash (OCR, translation, analysis), DeepSeek Chat (analysis, translation)
+- **Embeddings / RAG** — OpenAI text-embedding-3-small + pgvector
+- **Transcription** — Groq Whisper
+- **Styling** — Tailwind CSS v4, neo-brutal design system
+
+## Local setup
+
+1. Clone the repo and install dependencies:
+
+```bash
+npm install
+```
+
+2. Copy the environment template and fill in your keys:
+
+```bash
+cp .env.example .env.local
+```
+
+Required:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+```
+
+Optional (needed for AI features):
+
+```env
+GEMINI_API_KEY=
+OPENAI_API_KEY=
+GROQ_API_KEY=
+DEEPSEEK_API_KEY=
+```
+
+3. Run the dev server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start dev server |
+| `npm run build` | Production build |
+| `npm run typecheck` | TypeScript check (no emit) |
+| `npm run lint` | ESLint |
+| `npm run check:env` | Validate required env vars |
+| `npm run check:routes` | Smoke-check API route registry |
+| `npm run smoke:api` | Hit live API endpoints |
+| `npm run ingest` | Ingest knowledge base docs into pgvector |
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+  app/
+    (student)/          public-facing pages (lessons, homepage)
+    (admin)/            teacher dashboard (auth-gated)
+    (auth)/             login / OAuth callback
+    api/                API routes
+  features/
+    lesson-viewer/      interactive lesson reading UI
+    lingubreak/         sentence grammar breakdown (LinguBreak)
+    ocr/                image-to-text (Gemini Vision + Tesseract)
+    transcription/      audio transcription (Groq Whisper)
+    dictionary/         word lookup and Thai translation
+  shared/
+    lib/                services: auth, db, RAG, translation, OCR, transcription
+    hooks/              shared React hooks
+    types/              shared TypeScript types
+  config/               RAG config, feature registry
+  env/                  Zod-validated environment schemas
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## User flow
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+Student:  / → /lessons → /lessons/[id] → read + interact
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Teacher:  /login (Google SSO)
+          → /dashboard
+          → /dashboard/lessons → /dashboard/lessons/[id]
+             ├── add segments
+             ├── AI analysis (LinguBreak)
+             ├── bulk translate
+             └── publish → students see the lesson
+```

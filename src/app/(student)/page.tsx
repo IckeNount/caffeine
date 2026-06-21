@@ -2,7 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
-import { BookOpen, ArrowRight, Sparkles } from "lucide-react";
+import { BookOpen, ArrowRight } from "lucide-react";
+import StudentNav from "./components/StudentNav";
 
 const FEATURES = [
   {
@@ -20,32 +21,7 @@ const FEATURES = [
 export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header
-        className="sticky top-0 z-50"
-        style={{
-          backgroundColor: 'var(--bg-card)',
-          borderBottom: '3px solid var(--border-brutal)',
-        }}
-      >
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div
-              className="w-8 h-8 flex items-center justify-center border-2 border-black"
-              style={{ backgroundColor: 'var(--accent-gold)', boxShadow: 'var(--shadow-brutal-sm)' }}
-            >
-              <Sparkles className="w-4.5 h-4.5 text-black" />
-            </div>
-            <span className="font-heading text-base font-bold tracking-tight uppercase">
-              <span className="rov-text">Caff</span>
-              <span style={{ color: 'var(--text-primary)' }}>eine</span>
-            </span>
-          </div>
-          <span className="text-xs font-sarabun hidden sm:block" style={{ color: 'var(--text-muted)' }}>
-            เครื่องมือเรียนภาษาอังกฤษ
-          </span>
-        </div>
-      </header>
+      <StudentNav />
 
       {/* Main */}
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-12 sm:py-16 space-y-12">

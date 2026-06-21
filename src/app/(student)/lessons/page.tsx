@@ -4,7 +4,6 @@ import React, { useState } from "react";
 import Link from "next/link";
 import {
   BookOpen,
-  ArrowLeft,
   Layers,
   Clock,
   Tag,
@@ -14,6 +13,7 @@ import {
 } from "lucide-react";
 import { useLessons } from "@/shared/hooks/useLessons";
 import type { Lesson } from "@/shared/types/lesson-types";
+import StudentNav from "../components/StudentNav";
 
 // ── Difficulty Badge ─────────────────────────────────────────────
 const DIFFICULTY_CONFIG = {
@@ -228,51 +228,20 @@ export default function LessonsPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header
-        className="sticky top-0 z-50"
-        style={{
-          backgroundColor: "var(--bg-card)",
-          borderBottom: "3px solid var(--border-brutal)",
-        }}
-      >
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-sm font-heading uppercase tracking-wider hover:opacity-70 transition-opacity"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Home</span>
-          </Link>
-          <div
-            className="w-px h-6"
-            style={{ backgroundColor: "var(--border-subtle)" }}
-          />
-          <div className="flex items-center gap-2.5">
-            <div
-              className="w-8 h-8 flex items-center justify-center border-2 border-black"
-              style={{
-                backgroundColor: "var(--accent-gold)",
-                boxShadow: "var(--shadow-brutal-sm)",
-              }}
-            >
-              <BookOpen className="w-4.5 h-4.5 text-black" />
-            </div>
-            <span className="font-heading text-base font-bold tracking-tight uppercase">
-              <span className="rov-text">Lessons</span>
-            </span>
-          </div>
-          {!isLoading && (
+      <StudentNav
+        back={{ href: "/", label: "Home" }}
+        title="Lessons"
+        extra={
+          !isLoading ? (
             <span
-              className="ml-auto text-xs font-heading uppercase tracking-wider"
+              className="text-xs font-heading uppercase tracking-wider"
               style={{ color: "var(--text-muted)" }}
             >
               {total} {total === 1 ? "lesson" : "lessons"}
             </span>
-          )}
-        </div>
-      </header>
+          ) : undefined
+        }
+      />
 
       {/* Main */}
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 py-8 sm:py-12 space-y-8">

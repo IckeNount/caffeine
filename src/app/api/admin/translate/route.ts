@@ -8,7 +8,7 @@ import {
 // POST /api/admin/translate — Translate a single sentence (synchronous)
 export async function POST(request: NextRequest) {
   try {
-    await requireTeacher();
+    const { profile } = await requireTeacher();
     const { text, provider = "gemini" } = await request.json();
 
     if (!text || typeof text !== "string" || text.trim().length === 0) {
@@ -29,7 +29,12 @@ export async function POST(request: NextRequest) {
       ? provider
       : "gemini";
 
-    const result = await translateSentence(text.trim(), selectedProvider);
+    const apiKey =
+      selectedProvider === "gemini"
+        ? (profile.gemini_api_key ?? undefined)
+        : (profile.deepseek_api_key ?? undefined);
+
+    const result = await translateSentence(text.trim(), selectedProvider, apiKey);
 
     return NextResponse.json(result);
   } catch (error) {

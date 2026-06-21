@@ -4,7 +4,6 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
-  ArrowLeft,
   BookOpen,
   Layers,
   Tag,
@@ -19,6 +18,7 @@ import {
   Languages,
 } from "lucide-react";
 import { publicEnv } from "@/env/public";
+import StudentNav from "../../components/StudentNav";
 import { useLesson } from "@/shared/hooks/useLesson";
 import type { LessonSegment } from "@/shared/types/lesson-types";
 import type { AnalysisChunk } from "@/features/lingubreak/lib/schema";
@@ -445,46 +445,10 @@ export default function LessonDetailPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header
-        className="sticky top-0 z-50"
-        style={{
-          backgroundColor: "var(--bg-card)",
-          borderBottom: "3px solid var(--border-brutal)",
-        }}
-      >
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
-          <Link
-            href="/lessons"
-            className="flex items-center gap-2 text-sm font-heading uppercase tracking-wider hover:opacity-70 transition-opacity"
-            style={{ color: "var(--text-muted)" }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Lessons</span>
-          </Link>
-          <div
-            className="w-px h-6"
-            style={{ backgroundColor: "var(--border-subtle)" }}
-          />
-          <div className="flex items-center gap-2.5">
-            <div
-              className="w-8 h-8 flex items-center justify-center border-2 border-black"
-              style={{
-                backgroundColor: "var(--accent-gold)",
-                boxShadow: "var(--shadow-brutal-sm)",
-              }}
-            >
-              <BookOpen className="w-4.5 h-4.5 text-black" />
-            </div>
-            <span
-              className="font-heading text-sm font-bold tracking-tight uppercase truncate max-w-[200px] sm:max-w-none"
-              style={{ color: "var(--text-primary)" }}
-            >
-              {lesson?.title ?? "Loading..."}
-            </span>
-          </div>
-        </div>
-      </header>
+      <StudentNav
+        back={{ href: "/lessons", label: "Lessons" }}
+        title={lesson?.title ?? "Loading..."}
+      />
 
       {/* Main — Lesson content */}
       <main className="flex-1 w-full px-4 sm:px-6 pt-8 sm:pt-12 pb-40">
