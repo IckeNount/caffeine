@@ -13,7 +13,7 @@ However, under conditions where students query **unique, never-before-seen sente
 ### Primary Bottlenecks (Low Scale Constraints)
 
 1. **Synchronous LLM Processing:** The `/api/analyze` route is purely synchronous. An LLM request taking 5–15 seconds forces the API connection to remain open, placing high memory strain on the Node.js server and risking timeout limits (e.g., Vercel's standard 10s-15s timeout limits).
-2. **Provider Rate Limits:** Unique requests ping DeepSeek or Gemini directly in parallel. Spikes in traffic will easily trigger `HTTP 429 Too Many Requests` responses from the providers, which cascades into poor student UX.
+2. **Provider Rate Limits:** Unique requests use OpenRouter's free model router. Free-tier availability and request limits can still produce `HTTP 429 Too Many Requests` responses during spikes.
 3. **Critical Collision Bug:** The `hashSentence` function in `ai-providers.ts` uses a weak bitwise implementation (`((hash << 5) - hash) + char`). At scale (thousands of distinct sentences), two different sentences will inevitably hash to the identical string. This will result in a terrifying cache-hit failure where Student B receives an analysis for Student A's completely different sentence.
 
 ---

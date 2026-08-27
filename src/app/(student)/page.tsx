@@ -9,10 +9,13 @@ import ReconstructionView from "@/features/lingubreak/components/ReconstructionV
 import SentenceInput from "@/features/lingubreak/components/SentenceInput";
 import StepAccordion from "@/features/lingubreak/components/StepAccordion";
 import { useAnalyze } from "@/features/lingubreak/hooks/useAnalyze";
-import type { AIProvider } from "@/features/lingubreak/lib/providers";
+import {
+  DEFAULT_AI_PROVIDER,
+  type AIProvider,
+} from "@/features/lingubreak/lib/providers";
 
 export default function Home() {
-  const [provider, setProvider] = useState<AIProvider>("deepseek");
+  const [provider, setProvider] = useState<AIProvider>(DEFAULT_AI_PROVIDER);
   const { result, loading, error, analyze, reset } = useAnalyze();
 
   return (

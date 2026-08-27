@@ -2,14 +2,14 @@
  * Knowledge Base Ingestion Script
  *
  * Reads all .md files from the knowledge-base/ directory,
- * chunks them, embeds each chunk using OpenAI, and uploads
+ * chunks them, embeds each chunk through OpenRouter, and uploads
  * everything to Supabase.
  *
  * Usage:
  *   npx tsx scripts/ingest.ts
  *
  * Requires these env vars (in .env.local):
- *   OPENAI_API_KEY
+ *   OPENROUTER_API_KEY
  *   NEXT_PUBLIC_SUPABASE_URL
  *   SUPABASE_SERVICE_ROLE_KEY
  */
@@ -26,16 +26,19 @@ dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const OPENAI_KEY = process.env.OPENAI_API_KEY;
+const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_KEY || !OPENAI_KEY) {
+if (!SUPABASE_URL || !SUPABASE_KEY || !OPENROUTER_KEY) {
   console.error("❌ Missing required environment variables.");
-  console.error("   Ensure .env.local has: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENAI_API_KEY");
+  console.error("   Ensure .env.local has: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENROUTER_API_KEY");
   process.exit(1);
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-const openai = new OpenAI({ apiKey: OPENAI_KEY });
+const openRouter = new OpenAI({
+  apiKey: OPENROUTER_KEY,
+  baseURL: "https://openrouter.ai/api/v1",
+});
 
 // ── Chunker (inline for script independence) ────────────────────────
 
@@ -100,8 +103,8 @@ function chunkDocument(content: string, source: string, category: string): Chunk
 async function embedText(text: string, maxRetries = 3): Promise<number[]> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const result = await openai.embeddings.create({
-        model: "text-embedding-3-small",
+      const result = await openRouter.embeddings.create({
+        model: "openai/text-embedding-3-small",
         input: text,
       });
       return result.data[0].embedding;

@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 // ── TypeScript Types ────────────────────────────────────────────────
 
 export type ChunkType =
@@ -30,6 +32,57 @@ export interface AnalysisResult {
   thai_translation: string;
   thai_reordered_chunks: AnalysisChunk[];
   pedagogical_steps: PedagogicalStep[];
+}
+
+// ── Runtime Validation ──────────────────────────────────────────────
+
+export const AnalysisResultSchema: z.ZodType<AnalysisResult> = z.object({
+  chunks: z.array(
+    z.object({
+      text: z.string(),
+      type: z.enum([
+        "subject",
+        "verb",
+        "object",
+        "relative_clause",
+        "prepositional",
+        "modifier",
+      ]),
+      explanation: z.string(),
+      thai_explanation: z.string(),
+    }),
+  ),
+  simplified_english: z.string(),
+  thai_translation: z.string(),
+  thai_reordered_chunks: z.array(
+    z.object({
+      text: z.string(),
+      type: z.enum([
+        "subject",
+        "verb",
+        "object",
+        "relative_clause",
+        "prepositional",
+        "modifier",
+      ]),
+      explanation: z.string(),
+      thai_explanation: z.string(),
+    }),
+  ),
+  pedagogical_steps: z.array(
+    z.object({
+      step_number: z.number(),
+      title: z.string(),
+      title_thai: z.string(),
+      description: z.string(),
+      description_thai: z.string(),
+      highlighted_text: z.string(),
+    }),
+  ),
+});
+
+export function parseAnalysisResult(value: unknown): AnalysisResult {
+  return AnalysisResultSchema.parse(value);
 }
 
 // ── Neo-Brutal × ROV Color Mapping ─────────────────────────────────

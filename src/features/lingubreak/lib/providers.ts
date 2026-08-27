@@ -1,4 +1,8 @@
-export type AIProvider = "deepseek" | "gemini";
+export type AIProvider = "openrouter";
+export type DirectAIProvider = "deepseek" | "gemini";
+
+export const DEFAULT_AI_PROVIDER: AIProvider = "openrouter";
+export const OPENROUTER_ANALYSIS_MODEL = "openrouter/free";
 
 export interface ProviderInfo {
   id: AIProvider;
@@ -9,19 +13,13 @@ export interface ProviderInfo {
 
 export const PROVIDERS: ProviderInfo[] = [
   {
-    id: "deepseek",
-    name: "DeepSeek",
-    icon: "🤖",
-    description: "DeepSeek Chat — fast & affordable",
-  },
-  {
-    id: "gemini",
-    name: "Gemini",
-    icon: "✨",
-    description: "Google Gemini 2.5 Flash",
+    id: "openrouter",
+    name: "OpenRouter",
+    icon: "↗️",
+    description: "Free model router",
   },
 ];
 
 export function isAIProvider(value: unknown): value is AIProvider {
-  return value === "deepseek" || value === "gemini";
+  return value === DEFAULT_AI_PROVIDER;
 }

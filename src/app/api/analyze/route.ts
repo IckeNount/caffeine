@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { analyzeSentence } from "@/features/lingubreak/lib/ai-providers";
 import {
+  DEFAULT_AI_PROVIDER,
   isAIProvider,
   type AIProvider,
 } from "@/features/lingubreak/lib/providers";
@@ -27,7 +28,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { sentence, provider = "deepseek" } = body;
+  const { sentence, provider = DEFAULT_AI_PROVIDER } = body;
 
   if (typeof sentence !== "string" || sentence.trim().length === 0) {
     return NextResponse.json(
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
 
   if (!isAIProvider(provider)) {
     return NextResponse.json(
-      { error: "Unsupported AI provider. Choose deepseek or gemini." },
+      { error: "Unsupported AI provider. Choose openrouter." },
       { status: 400 },
     );
   }
@@ -71,7 +72,7 @@ export async function POST(request: NextRequest) {
       normalizedMessage.includes("resource has been exhausted")
     ) {
       return NextResponse.json(
-        { error: "Rate limit reached. Please wait a moment and try again, or switch AI provider." },
+        { error: "Rate limit reached. Please wait a moment and try again." },
         { status: 429 },
       );
     }

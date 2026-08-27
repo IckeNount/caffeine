@@ -6,7 +6,7 @@
 
 **Architecture:** The root page composes existing LinguBreak UI and calls the public `/api/analyze` boundary. The analysis engine retains cache, RAG fallback, providers, schema, and provenance; OCR remains unchanged and separate.
 
-**Tech Stack:** Next.js 16 App Router, React 19, TypeScript, Tailwind CSS, Supabase/pgvector, OpenAI embeddings, DeepSeek, Gemini, Tesseract.js.
+**Tech Stack:** Next.js 16 App Router, React 19, TypeScript, Tailwind CSS, Supabase/pgvector, OpenRouter, Tesseract.js.
 
 ## Global Constraints
 
@@ -30,7 +30,7 @@
 
 **Files:** Modify `src/app/(student)/page.tsx`, `src/app/(student)/layout.tsx`, `src/app/layout.tsx`, `src/app/api/analyze/route.ts`, and `src/features/lingubreak/hooks/useAnalyze.ts`.
 
-**Interfaces:** `POST /api/analyze` consumes `{ sentence: string, provider: "deepseek" | "gemini" }` and produces `AnalysisResult` or `{ error: string }`.
+**Interfaces:** `POST /api/analyze` consumes `{ sentence: string, provider: "openrouter" }` and produces `AnalysisResult` or `{ error: string }`.
 
 - [x] Compose all existing LinguBreak result components on `/`.
 - [x] Remove teacher authorization and cookie credentials.

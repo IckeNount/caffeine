@@ -15,10 +15,10 @@ The current demo focuses on LinguBreak + RAG. Authentication, teacher tools, les
 ## Core flow
 
 ```text
-Guest sentence → /api/analyze → cache/RAG → LinguBreak → structured Thai learner explanation
+Guest sentence → /api/analyze → OpenRouter embeddings/RAG → openrouter/free → validated Thai learner explanation
 ```
 
-LinguBreak retrieves relevant grammar, Thai learner error patterns, pedagogy, and prior examples from Supabase/pgvector. Retrieval and cache failures degrade gracefully so the selected model can still analyze the sentence.
+LinguBreak retrieves relevant grammar, Thai learner error patterns, pedagogy, and prior examples from Supabase/pgvector. OpenRouter is the active provider for both query embeddings and sentence generation. Retrieval and cache failures degrade gracefully so the free model router can still analyze the sentence.
 
 ## OCR status
 
@@ -30,8 +30,8 @@ LinguBreak retrieves relevant grammar, Thai learner error patterns, pedagogy, an
 
 - Next.js 16 App Router, React 19, and TypeScript
 - Tailwind CSS v4
-- DeepSeek Chat and Gemini for structured sentence analysis
-- OpenAI `text-embedding-3-small`, Supabase, and pgvector for RAG
+- OpenRouter `openrouter/free` for structured sentence analysis
+- OpenRouter `openai/text-embedding-3-small`, Supabase, and pgvector for RAG
 - Gemini Vision and Tesseract.js for the preserved OCR boundary
 
 ## Local setup
@@ -55,7 +55,15 @@ NEXT_PUBLIC_SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-Configure the services you use:
+Required for the current demo:
+
+```env
+OPENROUTER_API_KEY=
+```
+
+`openrouter/free` keeps sentence generation on OpenRouter's available free-tier models. The preserved 1,536-dimensional RAG index uses `openai/text-embedding-3-small` through OpenRouter; embedding requests are inexpensive but are not part of the free chat router and may require OpenRouter credits.
+
+Direct provider keys are optional and unused during normal demo execution:
 
 ```env
 OPENAI_API_KEY=
@@ -63,7 +71,7 @@ DEEPSEEK_API_KEY=
 GEMINI_API_KEY=
 ```
 
-`OPENAI_API_KEY` enables embeddings/RAG. DeepSeek and Gemini keys enable their corresponding analysis providers; Gemini also powers `/api/ocr`.
+Their adapters remain for a future explicit fallback policy. `GEMINI_API_KEY` is also required only when calling the separate `/api/ocr` route.
 
 3. Start the app:
 
@@ -95,7 +103,7 @@ src/
     api/analyze/route.ts     public sentence-analysis boundary
     api/ocr/route.ts         preserved Gemini OCR boundary
   features/
-    lingubreak/              analysis UI, hook, schema, and providers
+    lingubreak/              analysis UI, runtime schema, and provider adapters
     ocr/                     preserved OCR UI building blocks
   shared/lib/
     db/                      server-side Supabase client
@@ -110,4 +118,4 @@ knowledge-base/
 
 ## Future v2
 
-A future backend may move `/api/analyze` behind AWS API Gateway/Lambda and add model fallback or saved history. Those concerns are deliberately not implemented in this demo refactor; the existing API boundary keeps that migration possible without coupling the UI to future infrastructure.
+A future backend may move `/api/analyze` behind AWS API Gateway/Lambda and enable the dormant direct-provider adapters as explicit fallbacks. Automatic fallback and those infrastructure concerns are deliberately not implemented in this demo; the existing API boundary keeps that migration possible without coupling the UI to future infrastructure.

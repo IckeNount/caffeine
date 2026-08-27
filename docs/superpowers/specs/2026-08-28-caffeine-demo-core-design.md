@@ -7,7 +7,7 @@ Reduce Caffeine to a public, demo-ready LinguBreak sentence-analysis product for
 ## Architecture
 
 ```text
-/ -> LinguBreak demo UI -> /api/analyze -> cache -> RAG -> DeepSeek/Gemini
+/ -> LinguBreak demo UI -> /api/analyze -> cache -> RAG -> OpenRouter
                                                 -> structured Thai learner result
 
 /api/ocr -> Gemini Vision
@@ -33,11 +33,11 @@ OCR remains secondary and is not added to the home page. The current `/api/ocr` 
 ## Analysis Data Flow
 
 1. The guest submits a trimmed English sentence and a supported provider.
-2. `/api/analyze` validates the JSON body, sentence type and length, and provider.
+2. `/api/analyze` validates the JSON body, sentence type and length, and the OpenRouter provider.
 3. LinguBreak checks the existing analysis cache.
 4. On a cache miss, it embeds the sentence and retrieves bounded grammar, pedagogy, Thai-error, and prior-analysis context.
 5. RAG failures degrade to the existing prompt-only fallback.
-6. DeepSeek or Gemini returns the existing structured `AnalysisResult`.
+6. OpenRouter's free model router returns the existing structured `AnalysisResult`.
 7. Cache persistence remains non-blocking and records the existing provenance.
 8. The UI renders chunks, core SVO, Thai translation, Thai-friendly ordering, and pedagogical steps.
 

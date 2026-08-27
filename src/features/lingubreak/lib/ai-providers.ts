@@ -3,12 +3,22 @@ import {
   SchemaType,
 } from "@google/generative-ai";
 import OpenAI from "openai";
+import { zodResponseFormat } from "openai/helpers/zod";
 import { getKbVersion, LINGUBREAK_PROMPT_VERSION } from "@/config/rag";
 import { EMBEDDING_DIM, EMBEDDING_MODEL } from "@/shared/lib/rag/embeddings";
 import type { RagTraceJson } from "@/shared/lib/rag/retriever";
-import { AnalysisResult } from "./schema";
-import type { AIProvider } from "./providers";
+import {
+  AnalysisResultSchema,
+  parseAnalysisResult,
+  type AnalysisResult,
+} from "./schema";
+import {
+  DEFAULT_AI_PROVIDER,
+  OPENROUTER_ANALYSIS_MODEL,
+  type AIProvider,
+} from "./providers";
 
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const GEMINI_ANALYSIS_MODEL = "gemini-2.5-flash";
 const DEEPSEEK_ANALYSIS_MODEL = "deepseek-chat";
 
@@ -74,26 +84,26 @@ async function getRAGContext(sentence: string): Promise<{
 
 // ── Caching ─────────────────────────────────────────────────────────
 
-async function getCachedAnalysis(sentenceHash: string): Promise<AnalysisResult | null> {
+async function getCachedAnalysis(
+  sentenceHash: string,
+  provider: AIProvider,
+): Promise<AnalysisResult | null> {
   try {
     const { supabaseAdmin } = await import("@/shared/lib/db/supabase");
     const { data } = await supabaseAdmin
       .from("analyses")
       .select("result_json")
       .eq("sentence_hash", sentenceHash)
+      .eq("provider", provider)
       .single();
 
     if (data?.result_json) {
-      return data.result_json as AnalysisResult;
+      return parseAnalysisResult(data.result_json);
     }
   } catch {
     // Cache not available
   }
   return null;
-}
-
-function llmModelForProvider(provider: AIProvider): string {
-  return provider === "gemini" ? GEMINI_ANALYSIS_MODEL : DEEPSEEK_ANALYSIS_MODEL;
 }
 
 /** UUID strings from kb_chunks — safe for Postgres uuid[] when valid. */
@@ -108,6 +118,7 @@ async function cacheAnalysis(
   sentence: string,
   sentenceHash: string,
   provider: AIProvider,
+  llmModel: string,
   result: AnalysisResult,
   chunkIds: string[],
   embeddingFromRag: number[] | null,
@@ -133,7 +144,7 @@ async function cacheAnalysis(
       sentence_hash: sentenceHash,
       embedding: embedding ? JSON.stringify(embedding) : null,
       provider,
-      llm_model: llmModelForProvider(provider),
+      llm_model: llmModel,
       embedding_model: EMBEDDING_MODEL,
       embedding_dim: EMBEDDING_DIM,
       prompt_version: LINGUBREAK_PROMPT_VERSION,
@@ -164,9 +175,61 @@ function hashSentence(sentence: string): string {
   return Math.abs(hash).toString(36);
 }
 
+// ── OpenRouter Demo Provider ────────────────────────────────────────
+
+interface ProviderAnalysis {
+  result: AnalysisResult;
+  model: string;
+}
+
+type OpenRouterChatRequest =
+  OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
+    provider: { require_parameters: true };
+  };
+
+async function analyzeWithOpenRouter(
+  sentence: string,
+  ragContext: string,
+): Promise<ProviderAnalysis> {
+  const client = new OpenAI({
+    apiKey: process.env.OPENROUTER_API_KEY || "",
+    baseURL: OPENROUTER_BASE_URL,
+  });
+
+  const request: OpenRouterChatRequest = {
+    model: OPENROUTER_ANALYSIS_MODEL,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: USER_PROMPT_TEMPLATE(sentence, ragContext) },
+    ],
+    response_format: zodResponseFormat(
+      AnalysisResultSchema,
+      "lingubreak_analysis",
+    ),
+    provider: { require_parameters: true },
+    temperature: 0.3,
+    max_tokens: 4096,
+  };
+
+  const response = await client.chat.completions.create(request);
+  const text = response.choices[0]?.message?.content;
+  if (!text) {
+    throw new Error("OpenRouter returned an empty response");
+  }
+
+  return {
+    result: parseAnalysisResult(JSON.parse(text)),
+    model: response.model || OPENROUTER_ANALYSIS_MODEL,
+  };
+}
+
 // ── DeepSeek Provider ───────────────────────────────────────────────
 
-async function analyzeWithDeepSeek(sentence: string, ragContext: string): Promise<AnalysisResult> {
+/** Dormant direct-provider adapter reserved for a future fallback policy. */
+export async function analyzeWithDeepSeek(
+  sentence: string,
+  ragContext: string,
+): Promise<AnalysisResult> {
   const client = new OpenAI({
     apiKey: process.env.DEEPSEEK_API_KEY || "",
     baseURL: "https://api.deepseek.com",
@@ -188,7 +251,7 @@ async function analyzeWithDeepSeek(sentence: string, ragContext: string): Promis
     throw new Error("DeepSeek returned an empty response");
   }
 
-  return JSON.parse(text) as AnalysisResult;
+  return parseAnalysisResult(JSON.parse(text));
 }
 
 // ── Gemini Provider ─────────────────────────────────────────────────
@@ -253,7 +316,11 @@ const geminiSchema = {
   required: ["chunks", "simplified_english", "thai_translation", "thai_reordered_chunks", "pedagogical_steps"],
 };
 
-async function analyzeWithGemini(sentence: string, ragContext: string): Promise<AnalysisResult> {
+/** Dormant direct-provider adapter reserved for a future fallback policy. */
+export async function analyzeWithGemini(
+  sentence: string,
+  ragContext: string,
+): Promise<AnalysisResult> {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
   const model = genAI.getGenerativeModel({
     model: GEMINI_ANALYSIS_MODEL,
@@ -268,21 +335,21 @@ async function analyzeWithGemini(sentence: string, ragContext: string): Promise<
 
   const result = await model.generateContent(USER_PROMPT_TEMPLATE(sentence, ragContext));
   const text = result.response.text();
-  return JSON.parse(text) as AnalysisResult;
+  return parseAnalysisResult(JSON.parse(text));
 }
 
 // ── Public API ──────────────────────────────────────────────────────
 
 export async function analyzeSentence(
   sentence: string,
-  provider: AIProvider = "deepseek"
+  provider: AIProvider = DEFAULT_AI_PROVIDER,
 ): Promise<AnalysisResult> {
   const totalStart = Date.now();
   const sentenceHash = hashSentence(sentence.trim().toLowerCase());
 
   // 1. Check cache first
   const t1 = Date.now();
-  const cached = await getCachedAnalysis(sentenceHash);
+  const cached = await getCachedAnalysis(sentenceHash, provider);
   console.log(`⏱️  Cache check: ${Date.now() - t1}ms`);
   if (cached) {
     console.log("✅ Cache hit for sentence");
@@ -301,17 +368,7 @@ export async function analyzeSentence(
 
   // 3. Generate with chosen provider
   const t3 = Date.now();
-  let result: AnalysisResult;
-  switch (provider) {
-    case "deepseek":
-      result = await analyzeWithDeepSeek(sentence, ragContext);
-      break;
-    case "gemini":
-      result = await analyzeWithGemini(sentence, ragContext);
-      break;
-    default:
-      throw new Error(`Unknown provider: ${provider}`);
-  }
+  const { result, model } = await analyzeWithOpenRouter(sentence, ragContext);
   console.log(`⏱️  LLM (${provider}): ${Date.now() - t3}ms`);
 
   // 4. Cache the result (async, non-blocking)
@@ -319,6 +376,7 @@ export async function analyzeSentence(
     sentence,
     sentenceHash,
     provider,
+    model,
     result,
     chunkIds,
     ragEmbedding,

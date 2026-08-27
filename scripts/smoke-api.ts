@@ -37,11 +37,11 @@ async function main() {
   await expectStatus(
     "/api/analyze",
     400,
-    "public analysis validation (unsupported provider)",
+    "public analysis validation (direct provider disabled)",
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sentence: "This is a test.", provider: "unknown" }),
+      body: JSON.stringify({ sentence: "This is a test.", provider: "deepseek" }),
     },
   );
   await expectStatus(

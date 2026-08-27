@@ -9,15 +9,15 @@ Browser
   └── / — LinguBreak demo
         └── POST /api/analyze
               ├── analysis cache (Supabase)
-              ├── OpenAI embedding
+        ├── OpenRouter embedding (openai/text-embedding-3-small)
               ├── pgvector grammar/pedagogy retrieval
-              ├── DeepSeek or Gemini structured generation
+        ├── OpenRouter free-router structured generation
               └── non-blocking cache persistence
 ```
 
 ## LinguBreak contract
 
-The API returns the structured `AnalysisResult` fields:
+The API requests a strict JSON Schema response from `openrouter/free`, validates it locally, and returns the structured `AnalysisResult` fields:
 
 ```text
 chunks
@@ -31,11 +31,11 @@ The prompt teaches core SVO recognition, relative clauses and the Thai `ที�
 
 ## OCR boundary
 
-`POST /api/ocr` uses Gemini Vision. `src/shared/lib/ocr/tesseract-ocr.ts` provides a separate local browser implementation and is preserved for future local-first UI wiring.
+`POST /api/ocr` uses direct Gemini Vision when its optional key is configured. `src/shared/lib/ocr/tesseract-ocr.ts` provides a separate local browser implementation and is preserved for future local-first UI wiring.
 
 ## Data boundary
 
-Supabase remains required for the knowledge base, pgvector retrieval, provenance, and cached analyses. Removing Supabase Auth does not remove the server-side Supabase data dependency.
+Supabase remains required for the knowledge base, pgvector retrieval, provenance, and cached analyses. OpenRouter supplies the existing 1,536-dimensional OpenAI embedding model so RAG no longer requires a direct OpenAI key.
 
 ## Future migration
 
