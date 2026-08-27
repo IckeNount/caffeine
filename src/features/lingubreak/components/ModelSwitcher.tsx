@@ -1,7 +1,10 @@
 "use client";
 
 import React from "react";
-import { AIProvider, PROVIDERS } from "@/features/lingubreak/lib/ai-providers";
+import {
+  PROVIDERS,
+  type AIProvider,
+} from "@/features/lingubreak/lib/providers";
 import { ChevronDown } from "lucide-react";
 
 interface ModelSwitcherProps {

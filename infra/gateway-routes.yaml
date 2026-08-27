@@ -3,18 +3,7 @@
 # each entry maps to at least one handler (no stale gateway rows).
 
 prefixes:
-  - path: /api/admin
-    auth: required
-    notes: Teacher/admin APIs; middleware returns 401 without session.
   - path: /api/analyze
-    auth: optional
-  - path: /api/dictionary
-    auth: optional
-  - path: /api/lessons
-    auth: optional
+    auth: none
   - path: /api/ocr
-    auth: optional
-  - path: /api/transcription
-    auth: optional
-  - path: /api/transcriptions
-    auth: optional
+    auth: none

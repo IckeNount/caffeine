@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { AnalysisResult } from "@/features/lingubreak/lib/schema";
-import { AIProvider } from "@/features/lingubreak/lib/ai-providers";
+import type { AnalysisResult } from "@/features/lingubreak/lib/schema";
+import type { AIProvider } from "@/features/lingubreak/lib/providers";
 
 interface UseAnalyzeReturn {
   result: AnalysisResult | null;
@@ -26,7 +26,6 @@ export function useAnalyze(): UseAnalyzeReturn {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ sentence, provider }),
       });
 

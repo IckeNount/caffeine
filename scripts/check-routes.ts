@@ -39,12 +39,8 @@ function isDynamicSegment(seg: string): boolean {
 }
 
 /**
- * API namespace used for gateway registry: /api, /api/admin, /api/lessons, etc.
- * Stops at the first dynamic segment; `/api/admin/lessons/[id]` → `/api/admin/lessons`
- * is NOT what we want if we want `/api/admin` only for all admin routes.
- *
- * Rule: if second segment after `api` is `admin`, namespace is `/api/admin`.
- * Otherwise namespace is `/api/<firstStaticSegment>` or `/api` if none.
+ * API namespace used for the gateway registry.
+ * Returns `/api/<firstStaticSegment>` or `/api` when none exists.
  */
 function apiNamespace(pathname: string): string {
   const parts = pathname.split("/").filter(Boolean);
@@ -57,9 +53,6 @@ function apiNamespace(pathname: string): string {
   const second = parts[1];
   if (isDynamicSegment(second)) {
     return "/api";
-  }
-  if (second === "admin") {
-    return "/api/admin";
   }
   return `/api/${second}`;
 }

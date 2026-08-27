@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { AnalysisChunk, CHUNK_COLORS } from "@/features/lingubreak/lib/schema";
 import { Play, RotateCcw } from "lucide-react";
 
@@ -38,11 +38,6 @@ export default function ReconstructionView({
     setShowThai(false);
     setDisplayChunks(englishChunks);
     setIsAnimating(false);
-  }, [englishChunks]);
-
-  useEffect(() => {
-    setDisplayChunks(englishChunks);
-    setShowThai(false);
   }, [englishChunks]);
 
   return (

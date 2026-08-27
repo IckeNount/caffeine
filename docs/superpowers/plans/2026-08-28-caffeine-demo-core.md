@@ -23,8 +23,8 @@
 
 **Interfaces:** Preserve `/api/analyze`, `/api/ocr`, `src/features/lingubreak/**`, `src/shared/lib/rag/**`, and `src/shared/lib/ocr/**`.
 
-- [ ] Delete only dependency-audited obsolete files.
-- [ ] Run `npm run typecheck` and fix removal-induced import errors.
+- [x] Delete only dependency-audited obsolete files.
+- [x] Run `npm run typecheck` and fix removal-induced import errors.
 
 ### Task 2: Expose the guest LinguBreak demo
 
@@ -32,32 +32,32 @@
 
 **Interfaces:** `POST /api/analyze` consumes `{ sentence: string, provider: "deepseek" | "gemini" }` and produces `AnalysisResult` or `{ error: string }`.
 
-- [ ] Compose all existing LinguBreak result components on `/`.
-- [ ] Remove teacher authorization and cookie credentials.
-- [ ] Return `400` for malformed payloads and unsupported providers.
-- [ ] Correct the existing reconstruction-state lint failure without changing behavior.
+- [x] Compose all existing LinguBreak result components on `/`.
+- [x] Remove teacher authorization and cookie credentials.
+- [x] Return `400` for malformed payloads and unsupported providers.
+- [x] Correct the existing reconstruction-state lint failure without changing behavior.
 
 ### Task 3: Clean dependencies and deployment contracts
 
 **Files:** Modify `package.json`, `package-lock.json`, `src/env/schema.ts`, `.env.example`, `.env.production.example`, `infra/gateway-routes.yaml`, `infra/ROUTES.md`, and `scripts/smoke-api.ts`; delete unused client/middleware environment modules.
 
-- [ ] Remove `@supabase/ssr` and `groq-sdk` after confirming no imports remain.
-- [ ] Remove auth-only anon-key and transcription environment fields.
-- [ ] Register only surviving API namespaces and make smoke checks reflect guest analysis.
+- [x] Remove `@supabase/ssr` and `groq-sdk` after confirming no imports remain.
+- [x] Remove auth-only anon-key and transcription environment fields.
+- [x] Register only surviving API namespaces and make smoke checks reflect guest analysis.
 
 ### Task 4: Update product documentation
 
 **Files:** Modify `README.md`; delete obsolete teacher-dashboard documentation; add a concise obsolete-database report.
 
-- [ ] Describe LinguBreak + RAG as the current product.
-- [ ] Accurately document Gemini server OCR and preserved local Tesseract.
-- [ ] List suspected obsolete database objects without migrating them.
+- [x] Describe LinguBreak + RAG as the current product.
+- [x] Accurately document Gemini server OCR and preserved local Tesseract.
+- [x] List suspected obsolete database objects without migrating them.
 
 ### Task 5: Verify the completed refactor
 
-- [ ] Run stale-concept and import searches.
-- [ ] Run `npm run typecheck` and expect exit 0.
-- [ ] Run `npm run lint` and expect exit 0.
-- [ ] Run `npm run build` and expect exit 0.
-- [ ] Run `npm run check:routes` and expect exit 0.
-- [ ] Start the production server and run focused HTTP validation if the local environment permits it.
+- [x] Run stale-concept and import searches.
+- [x] Run `npm run typecheck` and expect exit 0.
+- [x] Run `npm run lint` and expect exit 0.
+- [x] Run `npm run build` and expect exit 0.
+- [x] Run `npm run check:routes` and expect exit 0.
+- [x] Start the production server and run focused HTTP validation if the local environment permits it.

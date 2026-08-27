@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Caffeine — AI English Learning Tools for Thai Students",
+  title: "Caffeine — English Sentence Breakdown for Thai Learners",
   description:
-    "AI-powered tools that help Thai students learn English — sentence breakdown, OCR reader, dictionary, and more.",
+    "Break English sentences into grammatical chunks, Thai explanations, and Thai-friendly reconstruction steps.",
 };
 
 export default function StudentLayout({

@@ -2,17 +2,15 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Caffeine — AI English Learning Tools for Thai Students",
+  title: "Caffeine — English Sentence Breakdown for Thai Learners",
   description:
-    "AI-powered tools that help Thai students learn English — sentence breakdown, OCR reader, dictionary, and more.",
+    "AI-assisted English sentence analysis with Thai explanations and Thai-friendly reconstruction.",
   keywords: [
     "English learning",
     "Thai students",
     "grammar",
     "sentence breakdown",
     "AI education",
-    "OCR",
-    "dictionary",
     "เรียนภาษาอังกฤษ",
   ],
 };

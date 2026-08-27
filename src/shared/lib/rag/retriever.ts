@@ -70,7 +70,7 @@ export async function retrieveContext(
 }
 
 /**
- * Retrieve similar past analyses (approved by teachers).
+ * Retrieve similar approved analyses for compact few-shot context.
  */
 export async function retrieveSimilarAnalyses(
   embedding: number[],

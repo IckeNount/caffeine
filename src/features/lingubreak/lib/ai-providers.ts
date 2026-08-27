@@ -7,35 +7,10 @@ import { getKbVersion, LINGUBREAK_PROMPT_VERSION } from "@/config/rag";
 import { EMBEDDING_DIM, EMBEDDING_MODEL } from "@/shared/lib/rag/embeddings";
 import type { RagTraceJson } from "@/shared/lib/rag/retriever";
 import { AnalysisResult } from "./schema";
+import type { AIProvider } from "./providers";
 
 const GEMINI_ANALYSIS_MODEL = "gemini-2.5-flash";
 const DEEPSEEK_ANALYSIS_MODEL = "deepseek-chat";
-
-// ── Provider Types ──────────────────────────────────────────────────
-
-export type AIProvider = "deepseek" | "gemini";
-
-export interface ProviderInfo {
-  id: AIProvider;
-  name: string;
-  icon: string;
-  description: string;
-}
-
-export const PROVIDERS: ProviderInfo[] = [
-  {
-    id: "deepseek",
-    name: "DeepSeek",
-    icon: "🤖",
-    description: "DeepSeek Chat — fast & affordable",
-  },
-  {
-    id: "gemini",
-    name: "Gemini",
-    icon: "✨",
-    description: "Google Gemini 2.0 Flash",
-  },
-];
 
 // ── Shared System Prompt ────────────────────────────────────────────
 
@@ -75,8 +50,6 @@ Respond with a JSON object containing:
 
 // ── RAG Integration ─────────────────────────────────────────────────
 
-let ragAvailable = false;
-
 async function getRAGContext(sentence: string): Promise<{
   context: string;
   chunkIds: string[];
@@ -85,7 +58,6 @@ async function getRAGContext(sentence: string): Promise<{
 }> {
   try {
     const { buildRAGContext } = await import("@/shared/lib/rag/retriever");
-    ragAvailable = true;
     const built = await buildRAGContext(sentence);
     return {
       context: built.context,

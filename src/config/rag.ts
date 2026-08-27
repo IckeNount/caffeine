@@ -1,6 +1,6 @@
 /**
  * RAG retrieval limits — override via environment variables (optional).
- * Used by LinguBreak authoring pipeline only (not student reads).
+ * Used by the LinguBreak sentence-analysis pipeline.
  */
 
 function envInt(name: string, fallback: number): number {
