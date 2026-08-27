@@ -4,9 +4,13 @@
  */
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
+import { config } from "dotenv";
 import { serverEnvSchema } from "../src/env/schema";
 
 const cwd = process.cwd();
+
+// Match Next.js local development behavior without overriding CI/host values.
+config({ path: join(cwd, ".env.local"), quiet: true });
 
 function declaredKeysFromExample(filePath: string): Set<string> {
   const example = readFileSync(filePath, "utf8");
