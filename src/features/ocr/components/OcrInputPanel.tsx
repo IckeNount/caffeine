@@ -29,13 +29,7 @@ export default function OcrInputPanel({ open, onSelect }: OcrInputPanelProps) {
   };
 
   return (
-    <div
-      className="space-y-4 p-4"
-      style={{
-        background: "var(--bg-primary)",
-        border: "2px solid var(--border-brutal)",
-      }}
-    >
+    <div className="source-panel space-y-4">
       <ImageUploader
         onFileSelected={(file) => {
           void uploadAndExtract(file).then((extracted) => {
@@ -47,19 +41,18 @@ export default function OcrInputPanel({ open, onSelect }: OcrInputPanelProps) {
       />
 
       {isLoading && (
-        <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+        <p className="text-sm text-[var(--text-secondary)]" role="status">
           Reading the image locally…{progress === null ? "" : ` ${progress}%`}
         </p>
       )}
-      {error && <p className="text-sm" style={{ color: "var(--accent-coral)" }}>{error}</p>}
+      {error && <p className="text-sm text-[var(--accent-coral)]">{error}</p>}
 
       {result && (
         <div className="space-y-4">
           <div className="space-y-2">
             <label
               htmlFor="ocr-editable-text"
-              className="font-heading text-xs font-bold uppercase tracking-wider"
-              style={{ color: "var(--text-muted)" }}
+              className="eyebrow"
             >
               Review the extracted text
             </label>
@@ -67,14 +60,14 @@ export default function OcrInputPanel({ open, onSelect }: OcrInputPanelProps) {
               id="ocr-editable-text"
               value={editableText}
               onChange={(event) => setEditableText(event.target.value)}
-              className="brutal-input min-h-[140px] w-full resize-y p-3 text-sm leading-relaxed"
+              className="learner-input min-h-[140px] resize-y p-3 text-base leading-relaxed"
             />
           </div>
 
           {sentences.length > 0 ? (
             <SentencePicker sentences={sentences} onSelect={onSelect} />
           ) : (
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+            <p className="text-sm text-[var(--text-secondary)]">
               No complete sentence is ready yet. Correct the text above or try a clearer image.
             </p>
           )}

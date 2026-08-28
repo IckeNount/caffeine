@@ -85,51 +85,51 @@ export function parseAnalysisResult(value: unknown): AnalysisResult {
   return AnalysisResultSchema.parse(value);
 }
 
-// ── Neo-Brutal × ROV Color Mapping ─────────────────────────────────
+// ── Learner-friendly grammar color mapping ─────────────────────────
 
 export const CHUNK_COLORS: Record<
   ChunkType,
   { bg: string; text: string; border: string; label: string; labelThai: string }
 > = {
   subject: {
-    bg: "bg-[#3B82F6]",
-    text: "text-white",
-    border: "border-black",
+    bg: "bg-[#DCEBFF]",
+    text: "text-[#164E87]",
+    border: "border-[#7CB8F6]",
     label: "Subject",
     labelThai: "ประธาน",
   },
   verb: {
-    bg: "bg-[#FF4D4D]",
-    text: "text-white",
-    border: "border-black",
+    bg: "bg-[#FFE1DF]",
+    text: "text-[#8F3434]",
+    border: "border-[#F29A94]",
     label: "Verb",
     labelThai: "กริยา",
   },
   object: {
-    bg: "bg-[#00E5C7]",
-    text: "text-black",
-    border: "border-black",
+    bg: "bg-[#D9F7F1]",
+    text: "text-[#146D65]",
+    border: "border-[#72CFC5]",
     label: "Object",
     labelThai: "กรรม",
   },
   relative_clause: {
-    bg: "bg-[#22C55E]",
-    text: "text-white",
-    border: "border-black",
+    bg: "bg-[#E2F5DA]",
+    text: "text-[#3C6B2B]",
+    border: "border-[#9DCE88]",
     label: "Relative (ที่)",
     labelThai: "อนุประโยคขยาย (ที่)",
   },
   prepositional: {
-    bg: "bg-[#F59E0B]",
-    text: "text-black",
-    border: "border-black",
+    bg: "bg-[#FFF0C7]",
+    text: "text-[#7A5311]",
+    border: "border-[#E9C565]",
     label: "Prepositional",
     labelThai: "บุพบท",
   },
   modifier: {
-    bg: "bg-[#A855F7]",
-    text: "text-white",
-    border: "border-black",
+    bg: "bg-[#EEE2FF]",
+    text: "text-[#634390]",
+    border: "border-[#B99ADD]",
     label: "Modifier",
     labelThai: "ตัวขยาย",
   },

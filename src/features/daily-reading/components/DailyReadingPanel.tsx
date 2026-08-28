@@ -52,15 +52,9 @@ export default function DailyReadingPanel({
   if (!open) return null;
 
   return (
-    <div
-      className="space-y-4 p-4"
-      style={{
-        background: "var(--bg-primary)",
-        border: "2px solid var(--border-brutal)",
-      }}
-    >
+    <div className="source-panel space-y-4">
       {loading && (
-        <div className="flex items-center gap-2 py-5 text-sm" style={{ color: "var(--text-muted)" }}>
+        <div className="flex items-center gap-2 py-5 text-sm text-[var(--text-secondary)]" role="status">
           <Loader2 className="h-4 w-4 animate-spin" />
           Preparing today’s reading…
         </div>
@@ -68,14 +62,14 @@ export default function DailyReadingPanel({
 
       {error && (
         <div className="space-y-3">
-          <p className="text-sm" style={{ color: "var(--accent-coral)" }}>{error}</p>
+          <p className="text-sm text-[var(--accent-coral)]">{error}</p>
           <button
             type="button"
             onClick={() => {
               setError(null);
               setAttempt((value) => value + 1);
             }}
-            className="brutal-btn brutal-btn-secondary px-3 py-2 text-xs"
+            className="learner-button learner-button-quiet text-sm"
           >
             <RefreshCw className="h-4 w-4" /> Retry
           </button>
@@ -86,19 +80,19 @@ export default function DailyReadingPanel({
         <>
           <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-heading text-lg font-bold uppercase">{reading.title}</h3>
-              <span className="font-heading text-xs" style={{ color: "var(--text-muted)" }}>
+              <h3 className="font-heading text-lg font-semibold">{reading.title}</h3>
+              <span className="text-xs text-[var(--text-secondary)]">
                 {reading.generatedDate}
               </span>
             </div>
-            <p className="text-sm leading-7" style={{ color: "var(--text-secondary)" }}>
+            <p className="text-base leading-7 text-[var(--text-primary)]">
               {reading.paragraph}
             </p>
           </div>
 
           <SentencePicker sentences={reading.sentences} onSelect={onSelect} />
 
-          <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+          <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
             {reading.adaptationNotice}{" "}
             <a
               href={reading.source.url}

@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { BookOpen, Zap, Loader2, ChevronDown, RotateCcw, ScanLine } from "lucide-react";
+import { useState } from "react";
+import { BookOpen, ChevronDown, Loader2, RotateCcw, ScanLine, WandSparkles } from "lucide-react";
 import { DailyReadingPanel } from "@/features/daily-reading";
 import { OcrInputPanel } from "@/features/ocr";
 
@@ -30,159 +30,119 @@ export default function SentenceInput({
   const [showExamples, setShowExamples] = useState(false);
   const [activeSource, setActiveSource] = useState<"daily" | "scan" | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (sentence.trim() && !loading) {
-      onAnalyze(sentence.trim());
-    }
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (sentence.trim() && !loading) onAnalyze(sentence.trim());
   };
 
-  const handleExample = (example: string) => {
-    setSentence(example);
+  const chooseSentence = (value: string) => {
+    setSentence(value);
+    setActiveSource(null);
     setShowExamples(false);
   };
 
   const handleReset = () => {
     setSentence("");
     setActiveSource(null);
+    setShowExamples(false);
     onReset();
   };
 
-  const handleSourceSentence = (selectedSentence: string) => {
-    setSentence(selectedSentence);
-    setActiveSource(null);
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="w-full space-y-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div>
+        <h2 lang="th" className="font-heading text-xl font-semibold">เลือกประโยคที่อยากเข้าใจ</h2>
+        <p className="mt-1 text-sm leading-relaxed text-[var(--text-secondary)]">
+          Type your own sentence, choose today’s reading, or scan a page.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
-          onClick={() => setActiveSource((source) => source === "daily" ? null : "daily")}
+          onClick={() => setActiveSource((source) => (source === "daily" ? null : "daily"))}
           disabled={loading}
           aria-expanded={activeSource === "daily"}
-          className="brutal-btn brutal-btn-secondary px-4 py-3 text-sm"
+          className={`learner-button ${activeSource === "daily" ? "learner-button-primary" : "learner-button-quiet"}`}
         >
-          <BookOpen className="h-4 w-4" />
-          Today’s Reading
+          <BookOpen className="h-4 w-4" aria-hidden="true" />
+          <span><span lang="th" className="font-thai">บทอ่านวันนี้</span><span className="hidden sm:inline"> · Today</span></span>
         </button>
         <button
           type="button"
-          onClick={() => setActiveSource((source) => source === "scan" ? null : "scan")}
+          onClick={() => setActiveSource((source) => (source === "scan" ? null : "scan"))}
           disabled={loading}
           aria-expanded={activeSource === "scan"}
-          className="brutal-btn brutal-btn-secondary px-4 py-3 text-sm"
+          className={`learner-button ${activeSource === "scan" ? "learner-button-primary" : "learner-button-quiet"}`}
         >
-          <ScanLine className="h-4 w-4" />
-          Scan Text
+          <ScanLine className="h-4 w-4" aria-hidden="true" />
+          <span><span lang="th" className="font-thai">สแกนข้อความ</span><span className="hidden sm:inline"> · Scan</span></span>
         </button>
       </div>
 
-      <DailyReadingPanel
-        open={activeSource === "daily"}
-        onSelect={handleSourceSentence}
-      />
-      <OcrInputPanel
-        open={activeSource === "scan"}
-        onSelect={handleSourceSentence}
-      />
+      <DailyReadingPanel open={activeSource === "daily"} onSelect={chooseSentence} />
+      <OcrInputPanel open={activeSource === "scan"} onSelect={chooseSentence} />
 
-      <div className="relative">
-        <textarea
-          value={sentence}
-          onChange={(e) => setSentence(e.target.value)}
-          placeholder="Type or paste an English sentence here..."
-          className="brutal-input w-full min-h-[120px] p-4 pr-12 text-lg font-light resize-none"
-          maxLength={500}
-          disabled={loading}
-        />
-        <span
-          className="absolute bottom-3 right-4 text-xs tabular-nums font-heading"
-          style={{ color: 'var(--text-muted)' }}
-        >
-          {sentence.length}/500
-        </span>
+      <div>
+        <label htmlFor="sentence-input" className="eyebrow">ประโยคภาษาอังกฤษ · English sentence</label>
+        <div className="relative mt-2">
+          <textarea
+            id="sentence-input"
+            value={sentence}
+            onChange={(event) => setSentence(event.target.value)}
+            placeholder="Type or paste one English sentence…"
+            className="learner-input min-h-[128px] resize-y p-4 pb-9 text-lg leading-relaxed"
+            maxLength={500}
+            disabled={loading}
+          />
+          <span className="absolute bottom-3 right-4 text-xs tabular-nums text-[var(--text-secondary)]">
+            {sentence.length}/500
+          </span>
+        </div>
       </div>
 
-      {/* Example Sentences Dropdown */}
-      <div className="relative">
+      <div>
         <button
           type="button"
-          onClick={() => setShowExamples(!showExamples)}
-          className="flex items-center gap-2 text-sm font-medium transition-colors duration-200"
-          style={{ color: 'var(--text-muted)' }}
-          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-gold)'}
-          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+          onClick={() => setShowExamples((open) => !open)}
+          aria-expanded={showExamples}
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
         >
-          <span className="font-heading uppercase tracking-wider text-xs">Try an example</span>
-          <ChevronDown
-            className={`w-4 h-4 transition-transform duration-200 ${showExamples ? "rotate-180" : ""}`}
-          />
+          ลองประโยคตัวอย่าง · Try an example
+          <ChevronDown className={`h-4 w-4 transition-transform ${showExamples ? "rotate-180" : ""}`} aria-hidden="true" />
         </button>
-
         {showExamples && (
-          <div
-            className="absolute top-full left-0 right-0 mt-2 z-20 overflow-hidden"
-            style={{
-              backgroundColor: 'var(--bg-card)',
-              border: '3px solid var(--border-brutal)',
-              boxShadow: 'var(--shadow-brutal)',
-            }}
-          >
-            {EXAMPLE_SENTENCES.map((ex, i) => (
+          <div className="mt-2 grid gap-2 rounded-2xl bg-[#FFF9E8] p-3">
+            {EXAMPLE_SENTENCES.map((example, index) => (
               <button
-                key={i}
+                key={example}
                 type="button"
-                onClick={() => handleExample(ex)}
-                className="w-full text-left px-4 py-3 text-sm transition-colors duration-100"
-                style={{
-                  color: 'var(--text-secondary)',
-                  borderBottom: i < EXAMPLE_SENTENCES.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = 'var(--accent-gold)';
-                  e.currentTarget.style.color = '#000';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.color = 'var(--text-secondary)';
-                }}
+                onClick={() => chooseSentence(example)}
+                className="sentence-choice"
               >
-                {ex}
+                <span className="sentence-number">{index + 1}</span>
+                <span className="text-sm leading-relaxed sm:text-base">{example}</span>
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row">
         <button
           type="submit"
           disabled={!sentence.trim() || loading}
-          className="brutal-btn brutal-btn-primary flex-1 px-6 py-3.5 text-base"
+          className="learner-button learner-button-primary flex-1 px-6 py-3.5 text-base"
         >
           {loading ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Analyzing...</span>
-            </>
+            <><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />กำลังวิเคราะห์…</>
           ) : (
-            <>
-              <Zap className="w-5 h-5" />
-              <span>Break It Down</span>
-            </>
+            <><WandSparkles className="h-5 w-5" aria-hidden="true" />แกะประโยค · Break it down</>
           )}
         </button>
-
         {hasResult && (
-          <button
-            type="button"
-            onClick={handleReset}
-            className="brutal-btn brutal-btn-secondary px-5 py-3.5"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Reset</span>
+          <button type="button" onClick={handleReset} className="learner-button learner-button-quiet px-5">
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />เริ่มใหม่ · Reset
           </button>
         )}
       </div>

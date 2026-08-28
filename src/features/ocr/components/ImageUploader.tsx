@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { Camera, ImagePlus, X } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
 
 interface ImageUploaderProps {
   onFileSelected: (file: File) => void;
@@ -29,57 +30,42 @@ export default function ImageUploader({
   const validateAndPreview = useCallback(
     (file: File) => {
       setFileError(null);
-
       if (!ACCEPTED_TYPES.includes(file.type)) {
-        setFileError(`Unsupported format. Please use JPEG, PNG, or WebP.`);
+        setFileError("Unsupported format. Please use JPEG, PNG, or WebP.");
         return;
       }
-
       if (file.size > MAX_SIZE_BYTES) {
         const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-        setFileError(`File is too large (${sizeMB} MB). Max is ${MAX_SIZE_MB} MB.`);
+        setFileError(
+          `File is too large (${sizeMB} MB). Max is ${MAX_SIZE_MB} MB.`,
+        );
         return;
       }
 
-      // Generate preview
       const reader = new FileReader();
-      reader.onload = (e) => {
-        setPreview(e.target?.result as string);
+      reader.onload = (event) => {
+        setPreview(event.target?.result as string);
         setFileName(file.name);
         onFileSelected(file);
       };
       reader.readAsDataURL(file);
     },
-    [onFileSelected]
+    [onFileSelected],
   );
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file) validateAndPreview(file);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
     setIsDragOver(false);
-    const file = e.dataTransfer.files[0];
+    const file = event.dataTransfer.files[0];
     if (file) validateAndPreview(file);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = () => setIsDragOver(false);
-
-  const handleClick = () => {
-    if (!isLoading && !disabled) {
-      fileInputRef.current?.click();
-    }
-  };
-
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleClear = () => {
     setPreview(null);
     setFileName(null);
     setFileError(null);
@@ -90,14 +76,12 @@ export default function ImageUploader({
 
   return (
     <div className="space-y-3">
-      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
         accept={ACCEPTED_TYPES.join(",")}
         onChange={handleFileChange}
         className="hidden"
-        id="ocr-file-input"
         disabled={disabled || isLoading}
       />
       <input
@@ -107,135 +91,72 @@ export default function ImageUploader({
         capture="environment"
         onChange={handleFileChange}
         className="hidden"
-        id="ocr-camera-input"
         disabled={disabled || isLoading}
       />
 
-      {/* Drop zone / preview */}
       <div
-        onClick={handleClick}
         onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        id="ocr-drop-zone"
-        className="relative cursor-pointer transition-all duration-150"
-        style={{
-          background: isDragOver ? "var(--bg-card-hover)" : "var(--bg-primary)",
-          border: `3px dashed ${isDragOver ? "var(--accent-gold)" : fileError ? "var(--accent-coral)" : "var(--text-muted)"}`,
-          boxShadow: isDragOver ? "var(--shadow-brutal), 0 0 20px -5px rgba(255, 229, 0, 0.2)" : "var(--shadow-brutal-sm)",
-          borderRadius: "0px",
-          padding: preview ? "0.75rem" : "2.5rem 1.5rem",
-          opacity: disabled ? 0.4 : 1,
-          pointerEvents: disabled ? "none" : "auto",
+        onDragOver={(event) => {
+          event.preventDefault();
+          setIsDragOver(true);
         }}
+        onDragLeave={() => setIsDragOver(false)}
+        className={`rounded-2xl border-2 border-dashed p-4 transition-colors sm:p-6 ${isDragOver ? "border-[var(--accent-teal)] bg-[var(--surface-teal)]" : "border-[rgba(23,35,60,0.2)] bg-white"}`}
+        style={{ opacity: disabled ? 0.5 : 1 }}
       >
         {preview ? (
-          /* Image preview */
-          <div className="flex gap-4 items-start">
-            <div
-              className="shrink-0 overflow-hidden"
-              style={{
-                border: "2px solid var(--border-brutal)",
-                boxShadow: "var(--shadow-brutal-sm)",
-                width: "120px",
-                height: "120px",
-              }}
-            >
+          <div className="flex items-start gap-4">
+            <div className="h-24 w-24 shrink-0 overflow-hidden rounded-xl border border-[var(--border-brutal)] sm:h-28 sm:w-28">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={preview}
-                alt="Upload preview"
-                className="w-full h-full object-cover"
-              />
+              <img src={preview} alt="Upload preview" className="h-full w-full object-cover" />
             </div>
-            <div className="flex-1 min-w-0 space-y-2 py-1">
-              <p
-                className="font-heading font-bold text-sm uppercase tracking-wide truncate"
-                style={{ color: "var(--text-primary)" }}
-              >
+            <div className="min-w-0 flex-1 py-1">
+              <p className="font-heading text-sm font-semibold text-[var(--text-primary)] break-words">
                 {fileName}
               </p>
-              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                {isLoading ? "⏳ Extracting text…" : "✅ Ready to extract"}
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                {isLoading ? "กำลังอ่านข้อความ… · Reading text" : "พร้อมอ่านตัวหนังสือ · Image ready"}
               </p>
               {!isLoading && (
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="text-xs font-heading uppercase tracking-wider px-2 py-1"
-                  style={{
-                    color: "var(--accent-coral)",
-                    border: "2px solid var(--accent-coral)",
-                    background: "transparent",
-                  }}
-                  id="ocr-clear-btn"
-                >
-                  ✕ Clear
+                <button type="button" onClick={handleClear} className="learner-button learner-button-quiet mt-3 text-sm">
+                  <X className="h-4 w-4" aria-hidden="true" />ล้างรูป · Clear
                 </button>
               )}
             </div>
           </div>
         ) : (
-          /* Empty state */
-          <div className="text-center space-y-3">
-            <div
-              className="w-14 h-14 mx-auto flex items-center justify-center text-2xl"
-              style={{
-                border: "3px solid var(--border-brutal)",
-                background: "var(--bg-card)",
-                boxShadow: "var(--shadow-brutal-sm)",
-              }}
-            >
-              📷
+          <div className="text-center">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-[var(--surface-teal)]">
+              <Camera className="h-6 w-6" aria-hidden="true" />
             </div>
-            <div>
-              <p className="font-heading font-bold text-sm uppercase tracking-wide"
-                style={{ color: "var(--text-primary)" }}>
-                {isDragOver ? "Drop it here!" : "Upload an image"}
-              </p>
-              <p className="text-xs mt-1 font-sarabun" style={{ color: "var(--text-secondary)" }}>
-                JPEG, PNG, or WebP — maximum 10 MB
-              </p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    fileInputRef.current?.click();
-                  }}
-                  className="brutal-btn brutal-btn-secondary px-3 py-2 text-xs"
-                >
-                  Choose image
-                </button>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    cameraInputRef.current?.click();
-                  }}
-                  className="brutal-btn brutal-btn-secondary px-3 py-2 text-xs"
-                >
-                  Take photo
-                </button>
-              </div>
+            <p lang="th" className="mt-3 font-thai text-base font-semibold">ถ่ายรูปหรือเลือกรูปข้อความ</p>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">JPEG, PNG, or WebP · maximum 10 MB</p>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={disabled || isLoading}
+                className="learner-button learner-button-quiet text-sm"
+              >
+                <ImagePlus className="h-4 w-4" aria-hidden="true" />เลือกรูป · Upload
+              </button>
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={disabled || isLoading}
+                className="learner-button learner-button-primary text-sm"
+              >
+                <Camera className="h-4 w-4" aria-hidden="true" />ถ่ายรูป · Camera
+              </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Error message */}
       {fileError && (
-        <div
-          className="text-xs font-heading uppercase tracking-wider px-3 py-2"
-          style={{
-            background: "rgba(255, 77, 77, 0.1)",
-            border: "2px solid var(--accent-coral)",
-            color: "var(--accent-coral)",
-          }}
-          id="ocr-file-error"
-        >
-          ⚠ {fileError}
-        </div>
+        <p role="alert" className="rounded-xl bg-[#FFF1EF] px-3 py-2 text-sm text-[var(--accent-coral)]">
+          {fileError}
+        </p>
       )}
     </div>
   );
