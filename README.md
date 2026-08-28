@@ -15,10 +15,17 @@ The current demo focuses on LinguBreak + RAG. Authentication, teacher tools, les
 ## Core flow
 
 ```text
-Guest sentence → /api/analyze → OpenRouter embeddings/RAG → openrouter/free → validated Thai learner explanation
+Daily reading or image OCR → chosen sentence → /api/analyze → OpenRouter embeddings/RAG → openrouter/free → validated Thai learner explanation
 ```
 
 LinguBreak retrieves relevant grammar, Thai learner error patterns, pedagogy, and prior examples from Supabase/pgvector. OpenRouter is the active provider for both query embeddings and sentence generation. Retrieval and cache failures degrade gracefully so the free model router can still analyze the sentence.
+
+## Learner content inputs
+
+- **Today’s Reading** fetches a reviewed topic from Simple English Wikipedia and uses OpenRouter to create a 3–4 sentence A2–B1 paragraph for ages 10–13. The learner chooses one sentence to analyze.
+- Adapted readings link to their source, identify that changes were made, and are published under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+- **Scan Text** accepts JPEG, PNG, and WebP images up to 10 MB. It supports device uploads and native rear-camera capture on compatible mobile browsers.
+- Image OCR runs locally with Tesseract by default, so this flow does not require or call Gemini.
 
 ## OCR status
 
@@ -91,6 +98,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run lint` | Run ESLint |
 | `npm run check:env` | Validate the environment contract |
 | `npm run health:api` | Run detailed server-only OpenRouter, Supabase, and RAG health checks |
+| `npm run check:content-inputs` | Validate daily-reading, sentence-splitting, route, and camera contracts |
 | `npm run check:routes` | Compare App Router APIs with the gateway registry |
 | `npm run smoke:api` | Validate API behavior against a running server |
 | `npm run ingest` | Ingest the knowledge base into pgvector |

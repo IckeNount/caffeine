@@ -13,7 +13,7 @@ interface UseOcrReturn {
   /** Progress percentage (0–100) for Tesseract loading. Null when not applicable. */
   progress: number | null;
   /** Upload a file and extract text from it. */
-  uploadAndExtract: (file: File) => Promise<void>;
+  uploadAndExtract: (file: File) => Promise<OcrResult | null>;
   /** Reset all state to initial. */
   reset: () => void;
 }
@@ -56,6 +56,7 @@ export function useOcr(provider: OcrProvider = "tesseract"): UseOcrReturn {
           }
 
           setResult(data);
+          return data;
         } else {
           // ── Server-side OCR via Gemini (paid, opt-in) ───────────
           const formData = new FormData();
@@ -76,11 +77,13 @@ export function useOcr(provider: OcrProvider = "tesseract"): UseOcrReturn {
           }
 
           setResult(data as OcrResult);
+          return data as OcrResult;
         }
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Something went wrong.";
         setError(message);
+        return null;
       } finally {
         setIsLoading(false);
         setProgress(null);

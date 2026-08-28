@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { Zap, Loader2, ChevronDown, RotateCcw } from "lucide-react";
+import { BookOpen, Zap, Loader2, ChevronDown, RotateCcw, ScanLine } from "lucide-react";
+import { DailyReadingPanel } from "@/features/daily-reading";
+import { OcrInputPanel } from "@/features/ocr";
 
 const EXAMPLE_SENTENCES = [
   "The student who studied hard passed the exam that was given by the professor.",
@@ -26,6 +28,7 @@ export default function SentenceInput({
 }: SentenceInputProps) {
   const [sentence, setSentence] = useState("");
   const [showExamples, setShowExamples] = useState(false);
+  const [activeSource, setActiveSource] = useState<"daily" | "scan" | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,11 +44,49 @@ export default function SentenceInput({
 
   const handleReset = () => {
     setSentence("");
+    setActiveSource(null);
     onReset();
+  };
+
+  const handleSourceSentence = (selectedSentence: string) => {
+    setSentence(selectedSentence);
+    setActiveSource(null);
   };
 
   return (
     <form onSubmit={handleSubmit} className="w-full space-y-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => setActiveSource((source) => source === "daily" ? null : "daily")}
+          disabled={loading}
+          aria-expanded={activeSource === "daily"}
+          className="brutal-btn brutal-btn-secondary px-4 py-3 text-sm"
+        >
+          <BookOpen className="h-4 w-4" />
+          Today’s Reading
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSource((source) => source === "scan" ? null : "scan")}
+          disabled={loading}
+          aria-expanded={activeSource === "scan"}
+          className="brutal-btn brutal-btn-secondary px-4 py-3 text-sm"
+        >
+          <ScanLine className="h-4 w-4" />
+          Scan Text
+        </button>
+      </div>
+
+      <DailyReadingPanel
+        open={activeSource === "daily"}
+        onSelect={handleSourceSentence}
+      />
+      <OcrInputPanel
+        open={activeSource === "scan"}
+        onSelect={handleSourceSentence}
+      />
+
       <div className="relative">
         <textarea
           value={sentence}

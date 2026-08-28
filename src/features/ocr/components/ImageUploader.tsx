@@ -6,6 +6,7 @@ interface ImageUploaderProps {
   onFileSelected: (file: File) => void;
   isLoading: boolean;
   disabled?: boolean;
+  onClear?: () => void;
 }
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -16,8 +17,10 @@ export default function ImageUploader({
   onFileSelected,
   isLoading,
   disabled = false,
+  onClear,
 }: ImageUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -81,6 +84,8 @@ export default function ImageUploader({
     setFileName(null);
     setFileError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    onClear?.();
   };
 
   return (
@@ -93,6 +98,17 @@ export default function ImageUploader({
         onChange={handleFileChange}
         className="hidden"
         id="ocr-file-input"
+        disabled={disabled || isLoading}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFileChange}
+        className="hidden"
+        id="ocr-camera-input"
+        disabled={disabled || isLoading}
       />
 
       {/* Drop zone / preview */}
@@ -144,6 +160,7 @@ export default function ImageUploader({
               </p>
               {!isLoading && (
                 <button
+                  type="button"
                   onClick={handleClear}
                   className="text-xs font-heading uppercase tracking-wider px-2 py-1"
                   style={{
@@ -177,8 +194,30 @@ export default function ImageUploader({
                 {isDragOver ? "Drop it here!" : "Upload an image"}
               </p>
               <p className="text-xs mt-1 font-sarabun" style={{ color: "var(--text-secondary)" }}>
-                Drag & drop or click to browse — JPEG, PNG, WebP (max 10 MB)
+                JPEG, PNG, or WebP — maximum 10 MB
               </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    fileInputRef.current?.click();
+                  }}
+                  className="brutal-btn brutal-btn-secondary px-3 py-2 text-xs"
+                >
+                  Choose image
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    cameraInputRef.current?.click();
+                  }}
+                  className="brutal-btn brutal-btn-secondary px-3 py-2 text-xs"
+                >
+                  Take photo
+                </button>
+              </div>
             </div>
           </div>
         )}

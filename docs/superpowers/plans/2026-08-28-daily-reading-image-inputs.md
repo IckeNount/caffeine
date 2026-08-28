@@ -34,7 +34,7 @@
 - Produces: `DailyReadingAdaptationSchema`, `DailyReadingSchema`, `DailyReading`, `getTopicForDate(date)`, `fetchDailyReadingSource(date)`, and `splitEnglishSentences(text)`.
 - Consumes: no application state or database.
 
-- [ ] **Step 1: Write the failing focused contract check**
+- [x] **Step 1: Write the failing focused contract check**
 
 Create `scripts/check-content-inputs.ts` using `node:assert/strict`. It must assert that a 3-sentence, 60-word adaptation parses; a two-sentence adaptation fails; the same UTC date always selects the same reviewed topic; and `splitEnglishSentences("One sentence. Is this two? Yes!")` returns three strings.
 
@@ -45,23 +45,23 @@ assert.equal(getTopicForDate(new Date("2026-08-28T00:00:00Z")), getTopicForDate(
 assert.deepEqual(splitEnglishSentences("One sentence. Is this two? Yes!"), ["One sentence.", "Is this two?", "Yes!"]);
 ```
 
-- [ ] **Step 2: Run the check and verify it fails**
+- [x] **Step 2: Run the check and verify it fails**
 
 Run: `npx tsx scripts/check-content-inputs.ts`
 
 Expected: module-not-found failure because the contracts do not exist.
 
-- [ ] **Step 3: Implement the schemas and sentence splitter**
+- [x] **Step 3: Implement the schemas and sentence splitter**
 
 `DailyReadingAdaptationSchema` requires a title, paragraph, and 3–4 sentences of at most 500 characters, checks 60–100 words, and verifies that normalized `sentences.join(" ")` equals the paragraph. `DailyReadingSchema` adds `generatedDate`, nested `source`, and `adaptationNotice`.
 
 `splitEnglishSentences` uses `Intl.Segmenter("en", { granularity: "sentence" })` and falls back to `text.match(/[^.!?]+[.!?]+|[^.!?]+$/g)`. It normalizes whitespace and keeps only strings 1–500 characters long.
 
-- [ ] **Step 4: Implement reviewed topic selection and MediaWiki acquisition**
+- [x] **Step 4: Implement reviewed topic selection and MediaWiki acquisition**
 
 Use a constant allowlist of safe Simple English Wikipedia titles. Select by the UTC day number modulo the allowlist length. Fetch `https://simple.wikipedia.org/w/api.php` with `action=query`, `prop=extracts|info`, `exintro=1`, `explaintext=1`, `inprop=url`, `format=json`, and `formatversion=2`; reject missing titles, URLs, or extracts shorter than 200 characters.
 
-- [ ] **Step 5: Register and run the focused check**
+- [x] **Step 5: Register and run the focused check**
 
 Add `"check:content-inputs": "tsx scripts/check-content-inputs.ts"` to `package.json`.
 
@@ -82,19 +82,19 @@ Expected: `check:content-inputs OK`.
 - Consumes: `fetchDailyReadingSource`, `DailyReadingAdaptationSchema`, `DailyReadingSchema`, `OPENROUTER_ANALYSIS_MODEL`.
 - Produces: `generateDailyReading(date?: Date): Promise<DailyReading>` and public `GET /api/daily-reading`.
 
-- [ ] **Step 1: Implement strict learner adaptation**
+- [x] **Step 1: Implement strict learner adaptation**
 
 Use the existing OpenAI SDK against `https://openrouter.ai/api/v1`. Request `openrouter/free` with `zodResponseFormat(DailyReadingAdaptationSchema, "daily_reading")`, `provider: { require_parameters: true }`, temperature `0.2`, and `max_tokens: 1200`. The prompt forbids facts outside the supplied extract and requires neutral, safe, 60–100 word A2–B1 output.
 
-- [ ] **Step 2: Attach server-owned provenance**
+- [x] **Step 2: Attach server-owned provenance**
 
 Return a `DailyReadingSchema`-validated object with date `YYYY-MM-DD`, canonical source URL/title, `CC BY-SA 4.0`, `https://creativecommons.org/licenses/by-sa/4.0/`, and the notice `Adapted and simplified from Simple English Wikipedia; changes were made.`
 
-- [ ] **Step 3: Add the route boundary**
+- [x] **Step 3: Add the route boundary**
 
 `GET` returns JSON with `Cache-Control: public, s-maxage=86400, stale-while-revalidate=3600`. Any acquisition, provider, or validation failure logs server-side and returns `{ "error": "Today's reading is temporarily unavailable. Please try again." }` with status 503.
 
-- [ ] **Step 4: Register and smoke-check the route**
+- [x] **Step 4: Register and smoke-check the route**
 
 Add `/api/daily-reading` with `auth: none` to `infra/gateway-routes.yaml`, document it in `infra/ROUTES.md`, and add a smoke expectation that GET returns either 200 or the defined 503 without accepting user parameters.
 
@@ -113,15 +113,15 @@ Expected: three API route prefixes are registered: analyze, OCR, and daily readi
 - Consumes: `GET /api/daily-reading` and `DailyReadingSchema`.
 - Produces: `SentencePicker({ sentences, onSelect })` and `DailyReadingPanel({ open, onSelect })`.
 
-- [ ] **Step 1: Build the sentence picker**
+- [x] **Step 1: Build the sentence picker**
 
 Render each sentence as a numbered `type="button"` control. Disable none of the validated sentences; call `onSelect(sentence)` without submitting the surrounding form.
 
-- [ ] **Step 2: Build the daily panel state machine**
+- [x] **Step 2: Build the daily panel state machine**
 
 When opened, fetch once with an `AbortController`, validate JSON with `DailyReadingSchema`, and render loading, retryable error, paragraph, sentence picker, source link, adaptation notice, and CC BY-SA license link. Do not auto-analyze the selected sentence.
 
-- [ ] **Step 3: Export the panel**
+- [x] **Step 3: Export the panel**
 
 Export `DailyReadingPanel`, schemas, and types from `src/features/daily-reading/index.ts`; do not export server-only acquisition or generation functions through the client barrel.
 
@@ -136,7 +136,7 @@ Export `DailyReadingPanel`, schemas, and types from `src/features/daily-reading/
 - Consumes: existing `useOcr("tesseract")`, `ImageUploader`, `splitEnglishSentences`, and `SentencePicker`.
 - Produces: `OcrInputPanel({ open, onSelect })`.
 
-- [ ] **Step 1: Add the native camera input**
+- [x] **Step 1: Add the native camera input**
 
 Keep the existing device input and add a second hidden input:
 
@@ -146,11 +146,11 @@ Keep the existing device input and add a second hidden input:
 
 Expose separate “Choose image” and “Take photo” buttons, pass both through the same MIME/size validation, and clear both input values on reset.
 
-- [ ] **Step 2: Build the OCR panel**
+- [x] **Step 2: Build the OCR panel**
 
 Run local Tesseract after selection, show its progress/error, copy result text into an editable textarea, split edited text deterministically, and render sentence choices. If none qualify, retain the textarea and explain that the learner can correct the text or try a clearer image.
 
-- [ ] **Step 3: Export the panel**
+- [x] **Step 3: Export the panel**
 
 Add `OcrInputPanel` to `src/features/ocr/index.ts`. Keep the Gemini route and existing OCR adapters unchanged.
 
@@ -164,15 +164,15 @@ Add `OcrInputPanel` to `src/features/ocr/index.ts`. Keep the Gemini route and ex
 - Consumes: `DailyReadingPanel` and `OcrInputPanel`.
 - Produces: the existing `SentenceInputProps` contract unchanged.
 
-- [ ] **Step 1: Add two source controls**
+- [x] **Step 1: Add two source controls**
 
 Add “Today’s Reading” and “Scan Text” buttons above the textarea. Track `activeSource: "daily" | "scan" | null`; opening one closes the other.
 
-- [ ] **Step 2: Connect sentence selection**
+- [x] **Step 2: Connect sentence selection**
 
 Both panels call one handler that sets the textarea value and closes the active panel. Manual typing, examples, reset, and the existing submit flow remain unchanged.
 
-- [ ] **Step 3: Document the feature and focused check**
+- [x] **Step 3: Document the feature and focused check**
 
 Document Simple English Wikipedia attribution/share-alike behavior, local image OCR, native camera capture, and `npm run check:content-inputs` in the README.
 
@@ -181,26 +181,26 @@ Document Simple English Wikipedia attribution/share-alike behavior, local image 
 **Files:**
 - Modify: `scripts/check-content-inputs.ts` only if static assertions reveal a real contract gap.
 
-- [ ] **Step 1: Add static camera and route assertions**
+- [x] **Step 1: Add static camera and route assertions**
 
 Read `ImageUploader.tsx` and assert it contains `capture="environment"`; read `gateway-routes.yaml` and assert `/api/daily-reading` is registered. Run `npm run check:content-inputs` and expect success.
 
-- [ ] **Step 2: Run project contracts**
+- [x] **Step 2: Run project contracts**
 
 Run: `npm run check:env && npm run check:routes && npm run typecheck && npm run lint`
 
 Expected: all commands exit 0.
 
-- [ ] **Step 3: Run production build**
+- [x] **Step 3: Run production build**
 
 Run: `npm run build`
 
 Expected: compilation succeeds and `/api/daily-reading` appears without any `/api/health` route.
 
-- [ ] **Step 4: Run focused live checks**
+- [x] **Step 4: Run focused live checks**
 
 Start the production server and run `npm run smoke:api`. Fetch `/api/daily-reading`; expect either a validated 200 response or the sanitized 503 when the free router is temporarily unable to produce valid structured output.
 
-- [ ] **Step 5: Commit implementation**
+- [x] **Step 5: Commit implementation**
 
 Stage only the files named by this plan and commit with `feat: add learner content inputs`. Leave `CAFFEINE_DEMO_CORE_REFACTOR_CODEX.md` untouched.

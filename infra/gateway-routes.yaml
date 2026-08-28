@@ -5,5 +5,7 @@
 prefixes:
   - path: /api/analyze
     auth: none
+  - path: /api/daily-reading
+    auth: none
   - path: /api/ocr
     auth: none
