@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "check:env": "tsx scripts/check-env.ts",
+    "health:api": "tsx scripts/check-api-health.ts",
     "check:routes": "tsx scripts/check-routes.ts",
     "smoke:api": "tsx scripts/smoke-api.ts",
     "ingest": "tsx scripts/ingest.ts"

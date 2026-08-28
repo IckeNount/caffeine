@@ -90,6 +90,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | `npm run typecheck` | Run TypeScript without emitting files |
 | `npm run lint` | Run ESLint |
 | `npm run check:env` | Validate the environment contract |
+| `npm run health:api` | Run detailed server-only OpenRouter, Supabase, and RAG health checks |
 | `npm run check:routes` | Compare App Router APIs with the gateway registry |
 | `npm run smoke:api` | Validate API behavior against a running server |
 | `npm run ingest` | Ingest the knowledge base into pgvector |

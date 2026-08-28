@@ -187,7 +187,7 @@ type OpenRouterChatRequest =
     provider: { require_parameters: true };
   };
 
-async function analyzeWithOpenRouter(
+export async function analyzeWithOpenRouter(
   sentence: string,
   ragContext: string,
 ): Promise<ProviderAnalysis> {
@@ -212,9 +212,12 @@ async function analyzeWithOpenRouter(
   };
 
   const response = await client.chat.completions.create(request);
-  const text = response.choices[0]?.message?.content;
+  const choice = response.choices[0];
+  const text = choice?.message?.content;
   if (!text) {
-    throw new Error("OpenRouter returned an empty response");
+    throw new Error(
+      `OpenRouter returned an empty response (model=${response.model || OPENROUTER_ANALYSIS_MODEL}, finish_reason=${choice?.finish_reason || "unknown"})`,
+    );
   }
 
   return {
