@@ -1,115 +1,83 @@
 "use client";
 
-import React, { useState } from "react";
-import { AnalysisChunk, CHUNK_COLORS } from "@/features/lingubreak/lib/schema";
-import { Info, X } from "lucide-react";
+import { useState } from "react";
+import { Brackets, ChevronRight } from "lucide-react";
+import type { AnalysisChunk } from "@/features/lingubreak/lib/schema";
+import { CHUNK_COLORS } from "@/features/lingubreak/lib/schema";
 
 interface ChunkDisplayProps {
   chunks: AnalysisChunk[];
-  title: string;
-  titleIcon?: React.ReactNode;
 }
 
-export default function ChunkDisplay({
-  chunks,
-  title,
-  titleIcon,
-}: ChunkDisplayProps) {
+export default function ChunkDisplay({ chunks }: ChunkDisplayProps) {
   const [selectedChunk, setSelectedChunk] = useState<number | null>(null);
+  const selected = selectedChunk === null ? null : chunks[selectedChunk];
 
   return (
-    <div className="space-y-4">
-      <h3 className="section-title flex items-center gap-2">
-        {titleIcon}
-        {title}
-      </h3>
+    <section className="learner-card p-5 sm:p-7" aria-labelledby="grammar-title">
+      <div className="flex items-start gap-3">
+        <span className="section-icon section-icon-coral" aria-hidden="true">
+          <Brackets className="h-5 w-5" />
+        </span>
+        <div>
+          <h2 id="grammar-title" className="section-heading">
+            ประโยคนี้ทำงานอย่างไร
+          </h2>
+          <p className="section-subtitle">แตะส่วนประโยคเพื่อดูไวยากรณ์</p>
+        </div>
+      </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="mt-5 flex flex-wrap gap-2">
         {chunks.map((chunk, index) => {
           const colors = CHUNK_COLORS[chunk.type];
           const isSelected = selectedChunk === index;
-
           return (
             <button
-              key={index}
+              key={`${chunk.text}-${index}`}
+              type="button"
+              aria-pressed={isSelected}
               onClick={() => setSelectedChunk(isSelected ? null : index)}
-              className={`
-                brutal-tag px-3 py-2 text-sm select-none
-                ${colors.bg} ${colors.text} ${colors.border} border-3
-                ${isSelected ? "translate-x-[-2px] translate-y-[-2px]" : ""}
-              `}
-              style={{
-                boxShadow: isSelected
-                  ? 'var(--shadow-brutal), 0 0 12px rgba(255, 229, 0, 0.4)'
-                  : 'var(--shadow-brutal-sm)',
-              }}
+              className={`chunk-button ${colors.bg} ${colors.text} ${colors.border}`}
             >
               <span>{chunk.text}</span>
-              <Info className="w-3.5 h-3.5 opacity-50" />
+              <ChevronRight
+                className={`h-4 w-4 transition-transform ${isSelected ? "rotate-90" : ""}`}
+                aria-hidden="true"
+              />
             </button>
           );
         })}
       </div>
 
-      {/* Explanation Tooltip */}
-      {selectedChunk !== null && chunks[selectedChunk] && (
-        <div
-          className="relative mt-2 p-4 animate-slam-in"
-          style={{
-            backgroundColor: 'var(--bg-card-hover)',
-            border: '3px solid var(--border-brutal)',
-            boxShadow: 'var(--shadow-brutal)',
-          }}
-        >
-          <button
-            onClick={() => setSelectedChunk(null)}
-            className="absolute top-3 right-3 transition-colors"
-            style={{ color: 'var(--text-muted)' }}
-            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent-coral)'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
-          >
-            <X className="w-4 h-4" />
-          </button>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <span
-                className={`inline-block px-2 py-0.5 text-xs font-bold uppercase border-2 border-black ${CHUNK_COLORS[chunks[selectedChunk].type].bg} ${CHUNK_COLORS[chunks[selectedChunk].type].text}`}
-              >
-                {CHUNK_COLORS[chunks[selectedChunk].type].label}
-              </span>
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                {CHUNK_COLORS[chunks[selectedChunk].type].labelThai}
-              </span>
-            </div>
-
-            <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              {chunks[selectedChunk].explanation}
-            </p>
-
-            <p className="text-sm leading-relaxed font-sarabun" style={{ color: 'var(--text-muted)' }}>
-              🇹🇭 {chunks[selectedChunk].thai_explanation}
-            </p>
+      {selected && (
+        <div className="mt-5 rounded-2xl border border-[var(--border-subtle)] bg-[#FFFCF4] p-4 sm:p-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${CHUNK_COLORS[selected.type].bg} ${CHUNK_COLORS[selected.type].text} ${CHUNK_COLORS[selected.type].border}`}>
+              {CHUNK_COLORS[selected.type].label}
+            </span>
+            <span lang="th" className="font-thai text-sm font-semibold text-[var(--text-secondary)]">
+              {CHUNK_COLORS[selected.type].labelThai}
+            </span>
           </div>
+          <p lang="th" className="thai-reading mt-4">
+            {selected.thai_explanation}
+          </p>
+          <p lang="en" className="mt-3 text-base leading-relaxed text-[var(--text-secondary)]">
+            {selected.explanation}
+          </p>
         </div>
       )}
 
-      {/* Legend */}
-      <div
-        className="flex flex-wrap gap-x-4 gap-y-1.5 pt-3"
-        style={{ borderTop: '2px solid var(--border-subtle)' }}
-      >
+      <div className="mt-5 flex flex-wrap gap-x-4 gap-y-2 border-t border-[var(--border-subtle)] pt-4">
         {Object.entries(CHUNK_COLORS).map(([type, colors]) => (
-          <div key={type} className="flex items-center gap-1.5">
-            <span
-              className={`inline-block w-3 h-3 border-2 border-black ${colors.bg}`}
-            />
-            <span className="text-xs font-heading uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-              {colors.label}
-            </span>
+          <div key={type} className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+            <span className={`h-3 w-3 rounded-sm border ${colors.bg} ${colors.border}`} aria-hidden="true" />
+            <span lang="th" className="font-thai">{colors.labelThai}</span>
+            <span aria-hidden="true">·</span>
+            <span>{colors.label}</span>
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
