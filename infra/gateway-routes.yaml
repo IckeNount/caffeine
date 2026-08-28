@@ -7,5 +7,7 @@ prefixes:
     auth: none
   - path: /api/daily-reading
     auth: none
+  - path: /api/dictionary
+    auth: none
   - path: /api/ocr
     auth: none
