@@ -1,21 +1,15 @@
 "use client";
 
-import { useState } from "react";
 import { AlertCircle, Brackets, Sparkles } from "lucide-react";
+import { WordLookup } from "@/features/dictionary";
 import ChunkDisplay from "@/features/lingubreak/components/ChunkDisplay";
 import ComparisonView from "@/features/lingubreak/components/ComparisonView";
-import ModelSwitcher from "@/features/lingubreak/components/ModelSwitcher";
-import ReconstructionView from "@/features/lingubreak/components/ReconstructionView";
 import SentenceInput from "@/features/lingubreak/components/SentenceInput";
 import StepAccordion from "@/features/lingubreak/components/StepAccordion";
 import { useAnalyze } from "@/features/lingubreak/hooks/useAnalyze";
-import {
-  DEFAULT_AI_PROVIDER,
-  type AIProvider,
-} from "@/features/lingubreak/lib/providers";
+import { DEFAULT_AI_PROVIDER } from "@/features/lingubreak/lib/providers";
 
 export default function Home() {
-  const [provider, setProvider] = useState<AIProvider>(DEFAULT_AI_PROVIDER);
   const { result, loading, error, analyze, reset } = useAnalyze();
 
   return (
@@ -48,13 +42,9 @@ export default function Home() {
               เข้าใจประโยคอังกฤษแบบคนไทย
             </p>
           </div>
-          <div className="ml-auto">
-            <ModelSwitcher
-              provider={provider}
-              onChange={setProvider}
-              disabled={loading}
-            />
-          </div>
+          <span className="ml-auto text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+            Gemini 3.6 Flash
+          </span>
         </div>
       </header>
 
@@ -82,7 +72,7 @@ export default function Home() {
 
         <section className="brutal-card p-5 sm:p-7">
           <SentenceInput
-            onAnalyze={(sentence) => analyze(sentence, provider)}
+            onAnalyze={(sentence) => analyze(sentence, DEFAULT_AI_PROVIDER)}
             onReset={reset}
             loading={loading}
             hasResult={result !== null}
@@ -116,19 +106,14 @@ export default function Home() {
               />
             </div>
 
+            <WordLookup chunks={result.chunks} />
+
             <div className="brutal-card p-5 sm:p-7">
               <ComparisonView
                 englishChunks={result.chunks}
                 thaiChunks={result.thai_reordered_chunks}
                 simplifiedEnglish={result.simplified_english}
                 thaiTranslation={result.thai_translation}
-              />
-            </div>
-
-            <div className="brutal-card p-5 sm:p-7">
-              <ReconstructionView
-                englishChunks={result.chunks}
-                thaiChunks={result.thai_reordered_chunks}
               />
             </div>
 
