@@ -1,7 +1,7 @@
-export type AIProvider = "openrouter";
+export type AIProvider = "gemini";
 export type DirectAIProvider = "deepseek" | "gemini";
 
-export const DEFAULT_AI_PROVIDER: AIProvider = "openrouter";
+export const DEFAULT_AI_PROVIDER: AIProvider = "gemini";
 export const OPENROUTER_ANALYSIS_MODEL = "openrouter/free";
 
 export interface ProviderInfo {
@@ -13,10 +13,10 @@ export interface ProviderInfo {
 
 export const PROVIDERS: ProviderInfo[] = [
   {
-    id: "openrouter",
-    name: "OpenRouter",
-    icon: "↗️",
-    description: "Free model router",
+    id: "gemini",
+    name: "Gemini",
+    icon: "✦",
+    description: "Gemini 3.6 Flash free tier",
   },
 ];
 

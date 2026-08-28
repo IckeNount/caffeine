@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
   if (!isAIProvider(provider)) {
     return NextResponse.json(
-      { error: "Unsupported AI provider. Choose openrouter." },
+      { error: "Unsupported AI provider. Choose gemini." },
       { status: 400 },
     );
   }

@@ -19,7 +19,7 @@ import {
 } from "./providers";
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
-const GEMINI_ANALYSIS_MODEL = "gemini-2.5-flash";
+export const GEMINI_ANALYSIS_MODEL = "gemini-3.6-flash";
 const DEEPSEEK_ANALYSIS_MODEL = "deepseek-chat";
 
 // ── Shared System Prompt ────────────────────────────────────────────
@@ -185,6 +185,7 @@ interface ProviderAnalysis {
 type OpenRouterChatRequest =
   OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
     provider: { require_parameters: true };
+    reasoning: { effort: "low" };
   };
 
 export async function analyzeWithOpenRouter(
@@ -207,16 +208,25 @@ export async function analyzeWithOpenRouter(
       "lingubreak_analysis",
     ),
     provider: { require_parameters: true },
+    reasoning: { effort: "low" },
     temperature: 0.3,
     max_tokens: 4096,
   };
 
   const response = await client.chat.completions.create(request);
-  const choice = response.choices[0];
+  const choice = response.choices?.[0];
   const text = choice?.message?.content;
   if (!text) {
+    const providerError = (
+      response as unknown as {
+        error?: { code?: string | number; message?: string };
+      }
+    ).error;
+    const providerErrorDetails = providerError
+      ? `, provider_error=${providerError.code || "unknown"}: ${providerError.message || "unknown error"}`
+      : "";
     throw new Error(
-      `OpenRouter returned an empty response (model=${response.model || OPENROUTER_ANALYSIS_MODEL}, finish_reason=${choice?.finish_reason || "unknown"})`,
+      `OpenRouter returned an empty response (model=${response.model || OPENROUTER_ANALYSIS_MODEL}, finish_reason=${choice?.finish_reason || "unknown"}${providerErrorDetails})`,
     );
   }
 
@@ -319,7 +329,6 @@ const geminiSchema = {
   required: ["chunks", "simplified_english", "thai_translation", "thai_reordered_chunks", "pedagogical_steps"],
 };
 
-/** Dormant direct-provider adapter reserved for a future fallback policy. */
 export async function analyzeWithGemini(
   sentence: string,
   ragContext: string,
@@ -371,7 +380,8 @@ export async function analyzeSentence(
 
   // 3. Generate with chosen provider
   const t3 = Date.now();
-  const { result, model } = await analyzeWithOpenRouter(sentence, ragContext);
+  const result = await analyzeWithGemini(sentence, ragContext);
+  const model = GEMINI_ANALYSIS_MODEL;
   console.log(`⏱️  LLM (${provider}): ${Date.now() - t3}ms`);
 
   // 4. Cache the result (async, non-blocking)

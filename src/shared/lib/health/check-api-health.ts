@@ -5,6 +5,7 @@ const REQUIRED_ENV_KEYS = [
   "NEXT_PUBLIC_SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
   "OPENROUTER_API_KEY",
+  "GEMINI_API_KEY",
 ] as const;
 
 type HealthCheckStatus = "pass" | "fail" | "skipped";
@@ -178,11 +179,13 @@ export async function checkApiHealth(): Promise<ApiHealthReport> {
           latencyMs: 0,
           details: {
             requiredKeysConfigured: true,
+            geminiAnalysisConfigured: Boolean(
+              process.env.GEMINI_API_KEY?.trim(),
+            ),
             openAiFallbackConfigured: Boolean(process.env.OPENAI_API_KEY?.trim()),
             deepSeekFallbackConfigured: Boolean(
               process.env.DEEPSEEK_API_KEY?.trim(),
             ),
-            geminiFallbackConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
           },
         }
       : {
@@ -199,7 +202,7 @@ export async function checkApiHealth(): Promise<ApiHealthReport> {
   if (missingKeys.length > 0) {
     for (const name of [
       "openrouter-auth",
-      "structured-analysis",
+      "gemini-structured-analysis",
       "embedding",
       "supabase-tables",
       "rag-rpcs",
@@ -223,29 +226,27 @@ export async function checkApiHealth(): Promise<ApiHealthReport> {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
+  checks.push(
+    await runCheck("gemini-structured-analysis", async () => {
+      const { analyzeWithGemini, GEMINI_ANALYSIS_MODEL } = await import(
+        "@/features/lingubreak/lib/ai-providers"
+      );
+      const result = await analyzeWithGemini(
+        "The cat sleeps on the warm mat.",
+        "",
+      );
+      return {
+        requestedModel: GEMINI_ANALYSIS_MODEL,
+        selectedModel: GEMINI_ANALYSIS_MODEL,
+        schemaValidated: true,
+        chunks: result.chunks.length,
+        pedagogicalSteps: result.pedagogical_steps.length,
+      };
+    }),
+  );
+
   let embedding: number[] | null = null;
   if (authCheck.status === "pass") {
-    checks.push(
-      await runCheck("structured-analysis", async () => {
-        const [{ analyzeWithOpenRouter }, { OPENROUTER_ANALYSIS_MODEL }] =
-          await Promise.all([
-            import("@/features/lingubreak/lib/ai-providers"),
-            import("@/features/lingubreak/lib/providers"),
-          ]);
-        const analysis = await analyzeWithOpenRouter(
-          "The cat sleeps on the warm mat.",
-          "",
-        );
-        return {
-          requestedModel: OPENROUTER_ANALYSIS_MODEL,
-          selectedModel: analysis.model,
-          schemaValidated: true,
-          chunks: analysis.result.chunks.length,
-          pedagogicalSteps: analysis.result.pedagogical_steps.length,
-        };
-      }),
-    );
-
     checks.push(
       await runCheck("embedding", async () => {
         const { embedText, EMBEDDING_DIM, EMBEDDING_MODEL } = await import(
@@ -270,7 +271,6 @@ export async function checkApiHealth(): Promise<ApiHealthReport> {
     );
   } else {
     checks.push(
-      skippedCheck("structured-analysis", "OpenRouter authentication failed"),
       skippedCheck("embedding", "OpenRouter authentication failed"),
     );
   }
