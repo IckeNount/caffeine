@@ -10,4 +10,4 @@ prefixes:
   - path: /api/dictionary
     auth: none
   - path: /api/ocr
-    auth: none
+    auth: feature-gated

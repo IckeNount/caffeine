@@ -77,8 +77,8 @@ async function main() {
   );
   await expectStatus(
     "/api/ocr",
-    400,
-    "public OCR validation (missing image)",
+    404,
+    "cloud OCR production gate",
     { method: "POST", body: new FormData() },
   );
   await expectStatus(

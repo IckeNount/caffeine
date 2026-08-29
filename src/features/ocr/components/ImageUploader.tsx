@@ -1,7 +1,12 @@
 "use client";
 
 import { Camera, ImagePlus, X } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  imageMimeTypeFromPath,
+  OcrError,
+  validateImageBytes,
+} from "@/shared/lib/ocr";
 
 interface ImageUploaderProps {
   onFileSelected: (file: File) => void;
@@ -10,9 +15,13 @@ interface ImageUploaderProps {
   onClear?: () => void;
 }
 
-const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_SIZE_MB = 10;
-const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+const FILE_INPUT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+];
 
 export default function ImageUploader({
   onFileSelected,
@@ -22,50 +31,71 @@ export default function ImageUploader({
 }: ImageUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const validateAndPreview = useCallback(
-    (file: File) => {
-      setFileError(null);
-      if (!ACCEPTED_TYPES.includes(file.type)) {
-        setFileError("Unsupported format. Please use JPEG, PNG, or WebP.");
-        return;
-      }
-      if (file.size > MAX_SIZE_BYTES) {
-        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-        setFileError(
-          `File is too large (${sizeMB} MB). Max is ${MAX_SIZE_MB} MB.`,
-        );
-        return;
-      }
+  useEffect(
+    () => () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    },
+    [],
+  );
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setPreview(event.target?.result as string);
+  const validateAndPreview = useCallback(
+    async (file: File) => {
+      setFileError(null);
+      try {
+        const lowerName = file.name.toLowerCase();
+        const claimedType =
+          file.type ||
+          imageMimeTypeFromPath(file.name) ||
+          (lowerName.endsWith(".heic") || lowerName.endsWith(".heif")
+            ? "image/heic"
+            : "");
+        validateImageBytes(new Uint8Array(await file.arrayBuffer()), claimedType);
+
+        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+        const nextPreview = URL.createObjectURL(file);
+        previewUrlRef.current = nextPreview;
+        setPreview(nextPreview);
         setFileName(file.name);
         onFileSelected(file);
-      };
-      reader.readAsDataURL(file);
+      } catch (error) {
+        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+        setPreview(null);
+        setFileName(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        if (cameraInputRef.current) cameraInputRef.current.value = "";
+        onClear?.();
+        setFileError(
+          error instanceof OcrError
+            ? error.message
+            : "This image could not be read. Use JPEG, PNG, or WebP.",
+        );
+      }
     },
-    [onFileSelected],
+    [onClear, onFileSelected],
   );
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) validateAndPreview(file);
+    if (file) void validateAndPreview(file);
   };
 
   const handleDrop = (event: React.DragEvent) => {
     event.preventDefault();
     setIsDragOver(false);
     const file = event.dataTransfer.files[0];
-    if (file) validateAndPreview(file);
+    if (file && !disabled && !isLoading) void validateAndPreview(file);
   };
 
   const handleClear = () => {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    previewUrlRef.current = null;
     setPreview(null);
     setFileName(null);
     setFileError(null);
@@ -79,7 +109,7 @@ export default function ImageUploader({
       <input
         ref={fileInputRef}
         type="file"
-        accept={ACCEPTED_TYPES.join(",")}
+        accept={FILE_INPUT_TYPES.join(",")}
         onChange={handleFileChange}
         className="hidden"
         disabled={disabled || isLoading}

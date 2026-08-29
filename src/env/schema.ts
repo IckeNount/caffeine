@@ -6,6 +6,8 @@ export const serverEnvSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(20),
   OPENROUTER_API_KEY: z.string().min(10),
   GEMINI_API_KEY: z.string().min(10),
+  OCR_CLOUD_ENABLED: z.enum(["true", "false"]).optional(),
+  GEMINI_OCR_MODEL: z.string().trim().min(1).optional(),
   OPENAI_API_KEY: z.string().optional(),
   DEEPSEEK_API_KEY: z.string().optional(),
 });

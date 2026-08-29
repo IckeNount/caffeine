@@ -1,58 +1,114 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractText, OcrError, SUPPORTED_IMAGE_TYPES, MAX_IMAGE_SIZE } from "@/shared/lib/ocr";
-import type { OcrOptions } from "@/shared/lib/ocr";
+import {
+  CloudOcrRequestOptionsSchema,
+  MAX_IMAGE_SIZE,
+  OcrError,
+  OcrModeSchema,
+  validateImageBytes,
+} from "@/shared/lib/ocr";
+import { extractText, isCloudOcrEnabled } from "@/shared/lib/ocr/ocr-service";
+
+export const runtime = "nodejs";
+const MAX_MULTIPART_OVERHEAD = 512 * 1024;
+
+function errorResponse(error: OcrError) {
+  return NextResponse.json(
+    { error: error.message, code: error.code },
+    { status: error.statusCode },
+  );
+}
+
+export async function GET() {
+  return NextResponse.json(
+    { enabled: isCloudOcrEnabled() },
+    { headers: { "Cache-Control": "no-store" } },
+  );
+}
 
 export async function POST(request: NextRequest) {
+  if (!isCloudOcrEnabled()) {
+    return errorResponse(
+      new OcrError("Cloud OCR is unavailable.", "CLOUD_OCR_DISABLED", 404),
+    );
+  }
+
+  const origin = request.headers.get("origin");
+  if (origin) {
+    try {
+      if (new URL(origin).origin !== request.nextUrl.origin) {
+        return NextResponse.json(
+          { error: "This OCR request is not allowed." },
+          { status: 403 },
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        { error: "This OCR request is not allowed." },
+        { status: 403 },
+      );
+    }
+  }
+
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (
+    Number.isFinite(contentLength) &&
+    contentLength > MAX_IMAGE_SIZE + MAX_MULTIPART_OVERHEAD
+  ) {
+    return errorResponse(
+      new OcrError("The image exceeds the 10 MB limit.", "IMAGE_TOO_LARGE", 413),
+    );
+  }
+
   try {
     const formData = await request.formData();
-    const file = formData.get("image") as File | null;
-    const mode = (formData.get("mode") as OcrOptions["mode"]) || "smart";
-
-    // ── Validate file presence ────────────────────────────────────
-    if (!file || !(file instanceof File)) {
-      return NextResponse.json(
-        { error: "No image file provided. Please upload a JPEG, PNG, or WebP image." },
-        { status: 400 }
+    const file = formData.get("image");
+    if (!(file instanceof File)) {
+      throw new OcrError(
+        "Choose a JPEG, PNG, or WebP image.",
+        "INVALID_IMAGE",
+        400,
       );
     }
 
-    // ── Validate file type ────────────────────────────────────────
-    if (!SUPPORTED_IMAGE_TYPES.includes(file.type as typeof SUPPORTED_IMAGE_TYPES[number])) {
-      return NextResponse.json(
-        { error: `Unsupported file type: ${file.type}. Please upload a JPEG, PNG, or WebP image.` },
-        { status: 400 }
+    const modeResult = OcrModeSchema.safeParse(formData.get("mode") ?? "smart");
+    if (!modeResult.success) {
+      throw new OcrError(
+        "OCR mode must be text or smart.",
+        "INVALID_MODE",
+        400,
       );
     }
 
-    // ── Validate file size ────────────────────────────────────────
-    if (file.size > MAX_IMAGE_SIZE) {
-      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-      return NextResponse.json(
-        { error: `File is too large (${sizeMB} MB). Maximum size is 10 MB.` },
-        { status: 400 }
+    const optionsResult = CloudOcrRequestOptionsSchema.safeParse({
+      mode: modeResult.data,
+      cloudConsent: formData.get("cloudConsent") === "true",
+    });
+    if (!optionsResult.success) {
+      throw new OcrError(
+        "Cloud OCR requires explicit consent.",
+        "CLOUD_CONSENT_REQUIRED",
+        400,
       );
     }
 
-    // ── Extract text ──────────────────────────────────────────────
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    const result = await extractText(buffer, file.type, { mode });
-
+    const buffer = Buffer.from(await file.arrayBuffer());
+    validateImageBytes(buffer, file.type);
+    const result = await extractText(buffer, file.type, {
+      mode: optionsResult.data.mode,
+    });
     return NextResponse.json(result);
   } catch (error) {
-    console.error("OCR API Error:", error);
-
     if (error instanceof OcrError) {
-      return NextResponse.json(
-        { error: error.message, code: error.code },
-        { status: error.statusCode }
-      );
+      console.warn("OCR API request rejected", { code: error.code });
+      return errorResponse(error);
     }
-
-    return NextResponse.json(
-      { error: "Failed to process image. Please try again." },
-      { status: 500 }
+    console.warn("OCR API request failed", { code: "EXTRACTION_FAILED" });
+    return errorResponse(
+      new OcrError(
+        "Cloud OCR could not process this image.",
+        "EXTRACTION_FAILED",
+        500,
+      ),
     );
   }
 }

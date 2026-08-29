@@ -12,13 +12,20 @@
     "check:content-inputs": "tsx scripts/check-content-inputs.ts",
     "check:dictionary": "tsx scripts/check-dictionary.ts",
     "check:learner-ui": "tsx scripts/check-learner-ui.ts",
+    "check:ocr": "tsx scripts/check-ocr.ts",
+    "check:mcp:ocr": "tsx scripts/check-mcp-ocr.ts",
+    "check:ocr:gemini-live": "tsx scripts/check-ocr-gemini-live.ts",
+    "mcp:ocr": "tsx src/mcp/ocr-server.ts",
+    "e2e:ocr": "playwright test tests/e2e/ocr.spec.ts --project=chromium",
     "health:api": "tsx scripts/check-api-health.ts",
     "check:routes": "tsx scripts/check-routes.ts",
     "smoke:api": "tsx scripts/smoke-api.ts",
     "ingest": "tsx scripts/ingest.ts"
   },
   "dependencies": {
+    "@google/genai": "^2.19.0",
     "@google/generative-ai": "^0.24.1",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@supabase/supabase-js": "^2.98.0",
     "lucide-react": "^0.574.0",
     "next": "16.1.6",
@@ -30,6 +37,8 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

@@ -14,6 +14,10 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSJ9.ci-placeholder-anon-key-min-length
       SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSJ9.ci-placeholder-service-role-key-min-len
+      OPENROUTER_API_KEY: ci-placeholder-openrouter-key
+      GEMINI_API_KEY: ci-placeholder-gemini-key
+      OCR_CLOUD_ENABLED: 'false'
+      GEMINI_OCR_MODEL: gemini-2.5-flash
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -27,11 +31,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
       - name: Validate environment contract
         run: npm run check:env
 
       - name: Route inventory and gateway registry (nginx + gateway-routes.yaml)
         run: npm run check:routes
+
+      - name: Validate learner content inputs
+        run: npm run check:content-inputs
+
+      - name: Validate OCR boundaries and real-image extraction
+        run: npm run check:ocr
+
+      - name: Validate OCR MCP contract
+        run: npm run check:mcp:ocr
+
+      - name: Run learner OCR browser flow
+        run: npm run e2e:ocr
 
       - name: Run linter
         run: npm run lint

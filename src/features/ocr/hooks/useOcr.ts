@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { OcrResult, OcrProvider } from "@/shared/lib/ocr";
+import {
+  OcrError,
+  OcrResultSchema,
+  type OcrProvider,
+  type OcrResult,
+} from "@/shared/lib/ocr";
 
 interface UseOcrReturn {
   /** Extracted text after OCR completes. */
@@ -12,8 +17,13 @@ interface UseOcrReturn {
   error: string | null;
   /** Progress percentage (0–100) for Tesseract loading. Null when not applicable. */
   progress: number | null;
+  activeProvider: OcrProvider | null;
   /** Upload a file and extract text from it. */
-  uploadAndExtract: (file: File) => Promise<OcrResult | null>;
+  uploadAndExtract: (
+    file: File,
+    provider?: OcrProvider,
+    cloudConsent?: boolean,
+  ) => Promise<OcrResult | null>;
   /** Reset all state to initial. */
   reset: () => void;
 }
@@ -21,25 +31,29 @@ interface UseOcrReturn {
 /**
  * React hook for client-side OCR workflow.
  *
- * @param provider - "tesseract" (free, default) or "gemini" (paid, opt-in)
- *
  * @example
  * ```tsx
- * const { result, isLoading, progress, uploadAndExtract } = useOcr("tesseract");
+ * const { result, isLoading, progress, uploadAndExtract } = useOcr();
  * ```
  */
-export function useOcr(provider: OcrProvider = "tesseract"): UseOcrReturn {
+export function useOcr(): UseOcrReturn {
   const [result, setResult] = useState<OcrResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
+  const [activeProvider, setActiveProvider] = useState<OcrProvider | null>(null);
 
   const uploadAndExtract = useCallback(
-    async (file: File) => {
+    async (
+      file: File,
+      provider: OcrProvider = "tesseract",
+      cloudConsent = false,
+    ) => {
       setIsLoading(true);
       setError(null);
       setResult(null);
       setProgress(null);
+      setActiveProvider(provider);
 
       try {
         if (provider === "tesseract") {
@@ -49,19 +63,22 @@ export function useOcr(provider: OcrProvider = "tesseract"): UseOcrReturn {
           );
           const data = await extractTextLocal(file, (p) => setProgress(p));
 
-          if (!data.text) {
-            throw new Error(
-              "No text detected in the image. Try a clearer image with visible English text."
+          const parsed = OcrResultSchema.parse(data);
+          setResult(parsed);
+          return parsed;
+        } else {
+          if (!cloudConsent) {
+            throw new OcrError(
+              "Cloud OCR requires explicit consent.",
+              "CLOUD_CONSENT_REQUIRED",
+              400,
             );
           }
-
-          setResult(data);
-          return data;
-        } else {
           // ── Server-side OCR via Gemini (paid, opt-in) ───────────
           const formData = new FormData();
           formData.append("image", file);
           formData.append("mode", "smart");
+          formData.append("cloudConsent", "true");
 
           const response = await fetch("/api/ocr", {
             method: "POST",
@@ -76,8 +93,9 @@ export function useOcr(provider: OcrProvider = "tesseract"): UseOcrReturn {
             );
           }
 
-          setResult(data as OcrResult);
-          return data as OcrResult;
+          const parsed = OcrResultSchema.parse(data);
+          setResult(parsed);
+          return parsed;
         }
       } catch (err) {
         const message =
@@ -87,9 +105,10 @@ export function useOcr(provider: OcrProvider = "tesseract"): UseOcrReturn {
       } finally {
         setIsLoading(false);
         setProgress(null);
+        setActiveProvider(null);
       }
     },
-    [provider]
+    [],
   );
 
   const reset = useCallback(() => {
@@ -97,7 +116,16 @@ export function useOcr(provider: OcrProvider = "tesseract"): UseOcrReturn {
     setIsLoading(false);
     setError(null);
     setProgress(null);
+    setActiveProvider(null);
   }, []);
 
-  return { result, isLoading, error, progress, uploadAndExtract, reset };
+  return {
+    result,
+    isLoading,
+    error,
+    progress,
+    activeProvider,
+    uploadAndExtract,
+    reset,
+  };
 }

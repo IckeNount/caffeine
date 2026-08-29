@@ -19,13 +19,13 @@ export interface OcrResult {
 
   /** Processing time in milliseconds. */
   processingTimeMs: number;
+
+  /** Adapter that produced this result. */
+  provider: OcrProvider;
 }
 
 /** Options for customizing OCR extraction behavior. */
 export interface OcrOptions {
-  /** Language hint to improve accuracy (default: "en"). */
-  languageHint?: string;
-
   /**
    * Extraction mode:
    * - "text"    → raw text only (fastest)
@@ -50,9 +50,15 @@ export type OcrErrorCode =
   | "INVALID_IMAGE"
   | "IMAGE_TOO_LARGE"
   | "UNSUPPORTED_FORMAT"
+  | "INVALID_MODE"
+  | "CLOUD_OCR_DISABLED"
+  | "CLOUD_CONSENT_REQUIRED"
+  | "PROVIDER_RATE_LIMITED"
+  | "PROVIDER_AUTH_ERROR"
+  | "PROVIDER_TIMEOUT"
   | "EXTRACTION_FAILED"
-  | "API_ERROR"
-  | "NO_TEXT_FOUND";
+  | "NO_TEXT_FOUND"
+  | "FILE_ACCESS_DENIED";
 
 /** Supported image MIME types. */
 export const SUPPORTED_IMAGE_TYPES = [
@@ -63,3 +69,7 @@ export const SUPPORTED_IMAGE_TYPES = [
 
 /** Maximum image file size in bytes (10 MB). */
 export const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+
+/** Reject decompression bombs and dimensions far beyond learner-device photos. */
+export const MAX_IMAGE_PIXELS = 40_000_000;
+export const MAX_IMAGE_DIMENSION = 12_000;
