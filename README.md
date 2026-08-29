@@ -19,6 +19,7 @@ The current demo includes:
 - Gemini-powered structured sentence analysis
 - bilingual, non-technical progress guidance for single and reviewed OCR analysis
 - one-request OCR batch analysis with instant ready-result switching and cache reuse
+- a focused Scan workspace that hides the redundant manual sentence field and single-sentence submit action
 - a Supabase/pgvector retrieval-augmented generation (RAG) pipeline
 - local browser OCR with Tesseract.js
 - an explicitly gated, consent-based Gemini cloud OCR recovery path
@@ -144,7 +145,7 @@ flowchart TB
 | Component | Primary path | Responsibility |
 | --- | --- | --- |
 | Learner page | `src/app/(student)/page.tsx` | Composes sentence input and result views |
-| Sentence input | `src/features/lingubreak/components/SentenceInput.tsx` | Selects typed, example, reading, or scan input |
+| Sentence input | `src/features/lingubreak/components/SentenceInput.tsx` | Owns source selection; shows manual analysis controls for typed/reading flows and unmounts them while Scan owns the reviewed-text workflow |
 | Analysis client state | `src/features/lingubreak/hooks/useAnalyze.ts` | Calls `/api/analyze` and owns loading/error/result state |
 | Batch client state | `src/features/lingubreak/hooks/useBatchAnalyze.ts` | Calls `/api/analyze-batch` once, validates the response, and tracks which reviewed text produced it |
 | Analysis boundary | `src/app/api/analyze/route.ts` | Validates public requests, maps provider errors, returns JSON |
@@ -206,7 +207,7 @@ sequenceDiagram
 
 ### Reviewed OCR batch-analysis flow
 
-OCR uses a separate explicit batch boundary so a learner does not have to request and wait for each extracted sentence individually. The learner may freely correct unwanted or inaccurate OCR text first. Only **ตรวจข้อความแล้ว · Break down all sentences** starts analysis.
+OCR uses a separate explicit batch boundary so a learner does not have to request and wait for each extracted sentence individually. The learner may freely correct unwanted or inaccurate OCR text first. While Scan is active, the general single-sentence textarea and **แกะประโยค · Break it down** button are not rendered; the OCR review is the only analysis control. Only **ตรวจข้อความแล้ว · Break down all sentences** starts analysis.
 
 ```mermaid
 sequenceDiagram
@@ -218,6 +219,7 @@ sequenceDiagram
     participant Gemini as Gemini analysis
 
     Learner->>UI: Correct extracted text
+    UI-->>Learner: Hide redundant manual sentence controls
     UI-->>Learner: Show sentence count and learner-text estimate
     Learner->>UI: Confirm Break down all sentences
     UI->>API: 1-10 distinct reviewed sentences
@@ -291,7 +293,7 @@ There is no application-level daily-reading database. Effective reuse depends on
 
 ### Image OCR
 
-JPEG, PNG, and WebP images up to 10 MB are processed with Tesseract in the browser by default. Before OCR, the client verifies the actual file signature, MIME type, dimensions, and pixel count. Images are rejected above 12,000 pixels on either edge or 40 megapixels in total. HEIC/HEIF is accepted by the picker only so the UI can return an explicit conversion message rather than failing silently. Extracted text remains editable and is segmented into English sentences without triggering analysis. After review, one explicit batch action prepares every accepted sentence; the resulting sentence panels can be opened instantly without another LLM request.
+JPEG, PNG, and WebP images up to 10 MB are processed with Tesseract in the browser by default. Before OCR, the client verifies the actual file signature, MIME type, dimensions, and pixel count. Images are rejected above 12,000 pixels on either edge or 40 megapixels in total. HEIC/HEIF is accepted by the picker only so the UI can return an explicit conversion message rather than failing silently. Extracted text remains editable and is segmented into English sentences without triggering analysis. Scan is a dedicated workspace: it replaces the general manual textarea and single-sentence submit action until the learner exits or resets the flow. After review, one explicit batch action prepares every accepted sentence; the resulting sentence panels can be opened instantly without another LLM request.
 
 If local extraction fails, returns confidence below `0.55`, or produces no complete sentence, the UI offers **Improve with cloud OCR — image leaves this device** only when `OCR_CLOUD_ENABLED=true`. The image is never uploaded automatically. The learner must activate that action, and `POST /api/ocr` requires `cloudConsent=true` before it will call Gemini. The route is disabled by default, validates the same image boundaries again, rejects mismatched browser Origin headers when one is present, applies a 20-second provider timeout, and returns sanitized provider failures.
 
@@ -592,7 +594,7 @@ After changing knowledge-base content:
 | `npm run check:routes` | Compare App Router APIs with gateway and Nginx configuration | Static/local checks |
 | `npm run check:ocr` | Validate schemas, image boundaries, route gates, path confinement, and real-image local OCR | Downloads/caches Tesseract English data on first run |
 | `npm run check:mcp:ocr` | Start the stdio MCP process, discover its one tool, and exercise success and rejection contracts | Local MCP subprocess and real-image OCR |
-| `npm run e2e:ocr` | Upload the fixture, edit text, mock one batch response, select a ready result, and confirm no cloud or single-sentence request | Playwright Chromium; starts the dev server |
+| `npm run e2e:ocr` | Upload the fixture, edit text, mock one batch response, select a ready result, confirm manual controls stay absent, and confirm no cloud or single-sentence request | Playwright Chromium; starts the dev server |
 | `npm run check:ocr:gemini-live` | Make exactly one real Gemini OCR fixture call | Skips unless `OCR_LIVE_GEMINI=1`; incurs provider usage |
 | `npm run mcp:ocr` | Start the OCR MCP server over stdio | Set `OCR_MCP_ALLOWED_ROOT` to the intended safe root |
 | `npm run health:api` | Probe environment, Gemini, OpenRouter, Supabase tables, embeddings, and RAG RPCs | Makes live provider calls |
@@ -708,6 +710,7 @@ Before accepting personal, confidential, or student-identifying content, establi
 | Change embedding model | `src/shared/lib/rag/embeddings.ts` | Database vector dimensions, setup SQL, ingestion |
 | Add knowledge | `knowledge-base/` | Run ingestion and update KB version |
 | Change result UI | `src/app/(student)/page.tsx` and `src/features/lingubreak/components/` | Learner UI contract check |
+| Change when manual sentence controls appear | `src/features/lingubreak/components/SentenceInput.tsx` | Scan batch workflow, Reset behavior, learner UI check, OCR browser specification |
 | Change daily topics or source | `src/features/daily-reading/lib/source.ts` | Attribution and content-input checks |
 | Change dictionary providers | `src/features/dictionary/lib/lookup.ts` | Degraded response contract and cache policy |
 | Change OCR provider or confidence threshold | `src/features/ocr/hooks/useOcr.ts` and `OcrInputPanel.tsx` | Shared schemas, privacy copy, upload limits, and `/api/ocr` |
