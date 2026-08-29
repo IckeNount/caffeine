@@ -17,7 +17,7 @@ The current demo includes:
 
 - a public learner page with typed, daily-reading, example, and image-scan inputs
 - Gemini-powered structured sentence analysis
-- bilingual, non-technical progress guidance for single and reviewed OCR analysis
+- bilingual, non-technical progress guidance for single and Today/Scan batch analysis
 - one-request Today and OCR batch analysis with instant ready-result switching and cache reuse
 - focused Today and Scan workspaces that hide the redundant manual sentence field and single-sentence submit action
 - a Supabase/pgvector retrieval-augmented generation (RAG) pipeline
@@ -148,7 +148,8 @@ flowchart TB
 | Learner page | `src/app/(student)/page.tsx` | Composes sentence input and result views |
 | Sentence input | `src/features/lingubreak/components/SentenceInput.tsx` | Shows manual analysis controls only in default mode; Today and Scan own their batch workflows |
 | Analysis client state | `src/features/lingubreak/hooks/useAnalyze.ts` | Calls `/api/analyze` and owns loading/error/result state |
-| Batch client state | `src/features/lingubreak/hooks/useBatchAnalyze.ts` | Calls `/api/analyze-batch` once, validates the response, and tracks which reviewed text produced it |
+| Batch learner UI | `src/features/ocr/components/OcrBatchAnalysis.tsx` | Reuses the same estimate, confirmation, progress, usage, and ready-result controls for Today and Scan |
+| Batch client state | `src/features/lingubreak/hooks/useBatchAnalyze.ts` | Calls `/api/analyze-batch` once, validates the response, and tracks which source text produced it |
 | Analysis boundary | `src/app/api/analyze/route.ts` | Validates public requests, maps provider errors, returns JSON |
 | Batch analysis boundary | `src/app/api/analyze-batch/route.ts` | Enforces the 10-sentence batch contract and returns sanitized errors |
 | Analysis orchestration | `src/features/lingubreak/lib/ai-providers.ts` | Gemini single and batch structured generation |
@@ -458,7 +459,7 @@ src/
   app/
     (student)/page.tsx          Public learner experience
     api/analyze/route.ts        Sentence-analysis boundary
-    api/analyze-batch/route.ts  Reviewed OCR batch-analysis boundary
+    api/analyze-batch/route.ts  Today and Scan batch-analysis boundary
     api/daily-reading/route.ts  Daily-reading boundary
     api/dictionary/route.ts     Vocabulary boundary
     api/ocr/route.ts            Gated cloud OCR boundary
@@ -674,7 +675,7 @@ Provider and RAG timings are written to server logs during analysis. There is no
 ## Security and privacy notes
 
 - Learner APIs have no authentication, per-user quota, CAPTCHA, or application rate limiter. Cloud OCR is additionally deny-by-default and rejects mismatched browser Origin headers when present, but gateway rate limits are still required before enabling it.
-- User sentences are sent to OpenRouter for embeddings, to Gemini for analysis, and may be stored in Supabase with the generated result and retrieval trace. OCR batch mode sends all uncached reviewed sentences together in one Gemini prompt.
+- User sentences are sent to OpenRouter for embeddings, to Gemini for analysis, and may be stored in Supabase with the generated result and retrieval trace. Today and Scan batch modes send all uncached source sentences together in one Gemini prompt.
 - Learner-image OCR runs locally by default. The cloud recovery action clearly states that the image leaves the device and requires an intentional click plus server-side consent validation.
 - The MCP tool reads only real files beneath `OCR_MCP_ALLOWED_ROOT`; it rejects URL input, traversal, and symlink escape.
 - Dictionary words are sent to MyMemory and Free Dictionary API.
@@ -687,7 +688,7 @@ Before accepting personal, confidential, or student-identifying content, establi
 ## Known limitations and deliberate trade-offs
 
 - Analysis is synchronous; slow model responses hold the HTTP connection open.
-- OCR batch analysis is one synchronous request capped at 10 sentences. It reduces request count but can still take longer than a single sentence and has no background resume behavior.
+- Today and Scan batch analysis is one synchronous request capped at 10 sentences. It reduces request count but can still take longer than a single sentence and has no background resume behavior.
 - The provider type currently permits only Gemini. OpenRouter and DeepSeek analysis adapters are dormant and are not automatic fallbacks.
 - RAG failures degrade silently to prompt-only analysis, improving availability but making reduced answer grounding less visible to the learner.
 - Cache persistence is best effort and uses a small non-cryptographic sentence hash.
@@ -705,14 +706,14 @@ Before accepting personal, confidential, or student-identifying content, establi
 | Change | Start here | Also review |
 | --- | --- | --- |
 | Change analysis prompt or teaching method | `src/features/lingubreak/lib/ai-providers.ts` | `src/features/lingubreak/lib/schema.ts`, prompt version |
-| Change OCR batch limits or response contract | `src/features/lingubreak/lib/batch-schema.ts` | Batch route, OCR batch UI, deterministic contract check |
+| Change Today/Scan batch limits or response contract | `src/features/lingubreak/lib/batch-schema.ts` | Batch route, shared batch UI, deterministic contract check |
 | Change batch cache/RAG orchestration | `src/features/lingubreak/lib/batch-analysis.ts` | `analysis-cache.ts`, `src/shared/lib/rag/retriever.ts` |
 | Change Gemini analysis model | `GEMINI_ANALYSIS_MODEL` in `ai-providers.ts` | Health checks, README, provider quota |
 | Tune RAG limits | `src/config/rag.ts` or `RAG_*` environment variables | Prompt size and latency |
 | Change embedding model | `src/shared/lib/rag/embeddings.ts` | Database vector dimensions, setup SQL, ingestion |
 | Add knowledge | `knowledge-base/` | Run ingestion and update KB version |
 | Change result UI | `src/app/(student)/page.tsx` and `src/features/lingubreak/components/` | Learner UI contract check |
-| Change when manual sentence controls appear | `src/features/lingubreak/components/SentenceInput.tsx` | Scan batch workflow, Reset behavior, learner UI check, OCR browser specification |
+| Change when manual sentence controls appear | `src/features/lingubreak/components/SentenceInput.tsx` | Today/Scan batch workflows, Reset behavior, learner UI check, OCR browser specification |
 | Change daily topics or source | `src/features/daily-reading/lib/source.ts` | Attribution and content-input checks |
 | Change dictionary providers | `src/features/dictionary/lib/lookup.ts` | Degraded response contract and cache policy |
 | Change OCR provider or confidence threshold | `src/features/ocr/hooks/useOcr.ts` and `OcrInputPanel.tsx` | Shared schemas, privacy copy, upload limits, and `/api/ocr` |
