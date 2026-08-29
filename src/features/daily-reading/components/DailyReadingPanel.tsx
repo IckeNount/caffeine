@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { ExternalLink, Loader2, RefreshCw } from "lucide-react";
-import SentencePicker from "@/features/lingubreak/components/SentencePicker";
+import OcrBatchAnalysis from "@/features/ocr/components/OcrBatchAnalysis";
+import type { AnalysisResult } from "@/features/lingubreak/lib/schema";
 import {
   DailyReadingSchema,
   type DailyReading,
@@ -10,12 +11,14 @@ import {
 
 interface DailyReadingPanelProps {
   open: boolean;
-  onSelect: (sentence: string) => void;
+  onReadyAnalysis: (sentence: string, result: AnalysisResult) => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
 export default function DailyReadingPanel({
   open,
-  onSelect,
+  onReadyAnalysis,
+  onLoadingChange,
 }: DailyReadingPanelProps) {
   const [reading, setReading] = useState<DailyReading | null>(null);
   const [loading, setLoading] = useState(false);
@@ -90,7 +93,13 @@ export default function DailyReadingPanel({
             </p>
           </div>
 
-          <SentencePicker sentences={reading.sentences} onSelect={onSelect} />
+          <OcrBatchAnalysis
+            variant="reading"
+            sentences={reading.sentences}
+            reviewedText={reading.paragraph}
+            onReady={onReadyAnalysis}
+            onLoadingChange={onLoadingChange}
+          />
 
           <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
             {reading.adaptationNotice}{" "}

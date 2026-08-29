@@ -11,6 +11,7 @@ import {
 import type { AnalysisResult } from "@/features/lingubreak/lib/schema";
 
 interface OcrBatchAnalysisProps {
+  variant?: "ocr" | "reading";
   sentences: string[];
   reviewedText: string;
   onReady: (sentence: string, result: AnalysisResult) => void;
@@ -18,6 +19,7 @@ interface OcrBatchAnalysisProps {
 }
 
 export default function OcrBatchAnalysis({
+  variant = "ocr",
   sentences,
   reviewedText,
   onReady,
@@ -39,6 +41,7 @@ export default function OcrBatchAnalysis({
   }, [sentences]);
   const estimate = estimateBatchText(validation.sentences);
   const stale = response !== null && analyzedText !== reviewedText;
+  const reading = variant === "reading";
 
   useEffect(() => {
     onLoadingChange?.(loading);
@@ -49,10 +52,12 @@ export default function OcrBatchAnalysis({
     <section className="space-y-4 rounded-2xl border border-[var(--border-subtle)] bg-[#FFFCF5] p-4">
       <div>
         <p lang="th" className="font-thai text-base font-semibold text-[var(--text-primary)]">
-          พร้อมแกะทุกประโยคในครั้งเดียว
+          {reading ? "พร้อมเรียนจากทุกประโยค" : "พร้อมแกะทุกประโยคในครั้งเดียว"}
         </p>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Review the text above first. Nothing starts until you choose the button below.
+          {reading
+            ? "Read the paragraph first. Nothing starts until you choose the button below."
+            : "Review the text above first. Nothing starts until you choose the button below."}
         </p>
       </div>
 
@@ -83,7 +88,7 @@ export default function OcrBatchAnalysis({
         className="learner-button learner-button-primary w-full px-4 py-3"
       >
         <Sparkles className="h-5 w-5 motion-safe:animate-pulse" aria-hidden="true" />
-        ตรวจข้อความแล้ว · Break down all sentences
+        {reading ? "พร้อมเรียนแล้ว" : "ตรวจข้อความแล้ว"} · Break down all sentences
       </button>
 
       {loading && <AnalysisProgress variant="batch" />}
@@ -96,9 +101,13 @@ export default function OcrBatchAnalysis({
       {stale && (
         <div role="alert" className="rounded-xl bg-[#FFF1E8] p-3 text-sm text-[var(--text-secondary)]">
           <p lang="th" className="font-thai font-semibold text-[var(--text-primary)]">
-            ข้อความเปลี่ยนแล้ว กรุณาแกะประโยคใหม่
+            {reading
+              ? "บทอ่านเปลี่ยนแล้ว กรุณาแกะประโยคใหม่"
+              : "ข้อความเปลี่ยนแล้ว กรุณาแกะประโยคใหม่"}
           </p>
-          <p className="mt-1">The ready breakdowns are outdated because the reviewed text changed.</p>
+          <p className="mt-1">
+            The ready breakdowns are outdated because the {reading ? "reading" : "reviewed text"} changed.
+          </p>
         </div>
       )}
 

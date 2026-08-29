@@ -34,7 +34,7 @@ export default function SentenceInput({
   const [activeSource, setActiveSource] = useState<"daily" | "scan" | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
   const busy = loading || batchLoading;
-  const showManualAnalysis = activeSource !== "scan";
+  const showManualAnalysis = activeSource === null;
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -92,7 +92,11 @@ export default function SentenceInput({
         </button>
       </div>
 
-      <DailyReadingPanel open={activeSource === "daily"} onSelect={chooseSentence} />
+      <DailyReadingPanel
+        open={activeSource === "daily"}
+        onReadyAnalysis={chooseReadyAnalysis}
+        onLoadingChange={setBatchLoading}
+      />
       <OcrInputPanel
         open={activeSource === "scan"}
         onReadyAnalysis={chooseReadyAnalysis}

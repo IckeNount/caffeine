@@ -21,6 +21,9 @@ const sentenceInput = read(
 );
 const ocrInput = read("src/features/ocr/components/OcrInputPanel.tsx");
 const ocrBatch = read("src/features/ocr/components/OcrBatchAnalysis.tsx");
+const dailyReading = read(
+  "src/features/daily-reading/components/DailyReadingPanel.tsx",
+);
 
 assert.match(wordLookup, /aria-pressed/);
 assert.match(wordLookup, /aria-live="polite"/);
@@ -42,7 +45,7 @@ assert.match(progress, /motion-reduce/);
 assert.doesNotMatch(sentenceInput, /Loader2/);
 assert.match(
   sentenceInput,
-  /const showManualAnalysis = activeSource !== "scan"/,
+  /const showManualAnalysis = activeSource === null/,
 );
 assert.match(
   sentenceInput,
@@ -53,10 +56,14 @@ assert.match(
   /showManualAnalysis && \(\s*<button\s+[\s\S]*?data-manual-analysis-submit/,
 );
 assert.match(ocrBatch, /ตรวจข้อความแล้ว/);
+assert.match(ocrBatch, /พร้อมเรียนแล้ว/);
 assert.match(ocrBatch, /Break down all sentences/);
 assert.match(ocrBatch, /พร้อมแล้ว/);
 assert.match(ocrBatch, /View breakdown/);
 assert.doesNotMatch(ocrInput, /SentencePicker/);
 assert.match(ocrInput, /onReadyAnalysis/);
+assert.doesNotMatch(dailyReading, /SentencePicker/);
+assert.match(dailyReading, /OcrBatchAnalysis/);
+assert.match(dailyReading, /variant="reading"/);
 
 console.log("check:learner-ui OK");

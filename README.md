@@ -18,8 +18,8 @@ The current demo includes:
 - a public learner page with typed, daily-reading, example, and image-scan inputs
 - Gemini-powered structured sentence analysis
 - bilingual, non-technical progress guidance for single and reviewed OCR analysis
-- one-request OCR batch analysis with instant ready-result switching and cache reuse
-- a focused Scan workspace that hides the redundant manual sentence field and single-sentence submit action
+- one-request Today and OCR batch analysis with instant ready-result switching and cache reuse
+- focused Today and Scan workspaces that hide the redundant manual sentence field and single-sentence submit action
 - a Supabase/pgvector retrieval-augmented generation (RAG) pipeline
 - local browser OCR with Tesseract.js
 - an explicitly gated, consent-based Gemini cloud OCR recovery path
@@ -122,6 +122,7 @@ flowchart TB
 
     Page --> ReadingAPI
     ReadingAPI --> ReadingService
+    Page -->|explicit Today batch action| BatchAPI
     ReadingService --> Wikipedia
     ReadingService --> OpenRouter
 
@@ -145,7 +146,7 @@ flowchart TB
 | Component | Primary path | Responsibility |
 | --- | --- | --- |
 | Learner page | `src/app/(student)/page.tsx` | Composes sentence input and result views |
-| Sentence input | `src/features/lingubreak/components/SentenceInput.tsx` | Owns source selection; shows manual analysis controls for typed/reading flows and unmounts them while Scan owns the reviewed-text workflow |
+| Sentence input | `src/features/lingubreak/components/SentenceInput.tsx` | Shows manual analysis controls only in default mode; Today and Scan own their batch workflows |
 | Analysis client state | `src/features/lingubreak/hooks/useAnalyze.ts` | Calls `/api/analyze` and owns loading/error/result state |
 | Batch client state | `src/features/lingubreak/hooks/useBatchAnalyze.ts` | Calls `/api/analyze-batch` once, validates the response, and tracks which reviewed text produced it |
 | Analysis boundary | `src/app/api/analyze/route.ts` | Validates public requests, maps provider errors, returns JSON |
@@ -165,7 +166,7 @@ flowchart TB
 
 ## Sentence-analysis flow
 
-`POST /api/analyze` remains the typed/example/daily-reading path. The service checks the analysis cache before doing any embedding or generation work. A cache miss retrieves both relevant knowledge-base chunks and approved prior analyses, then asks Gemini for a schema-constrained result. While it runs, the learner sees bilingual, non-technical progress stages; those stages are elapsed-time guidance and do not claim to be live provider telemetry.
+`POST /api/analyze` remains the typed/example path. The service checks the analysis cache before doing any embedding or generation work. A cache miss retrieves both relevant knowledge-base chunks and approved prior analyses, then asks Gemini for a schema-constrained result. While it runs, the learner sees bilingual, non-technical progress stages; those stages are elapsed-time guidance and do not claim to be live provider telemetry.
 
 ```mermaid
 sequenceDiagram
@@ -287,9 +288,10 @@ RAG is an enhancement, not a hard dependency of generation at request time. If e
 4. OpenRouter rewrites only the supplied facts into 60–100 words and exactly three or four A2–B1 sentences.
 5. Zod verifies the paragraph, sentence list, source attribution, and CC BY-SA 4.0 metadata.
 6. The response advertises a one-day shared-cache lifetime with one hour of stale-while-revalidate.
-7. The learner chooses one generated sentence and sends it through the normal analysis path.
+7. The learner clicks **พร้อมเรียนแล้ว · Break down all sentences**; the existing batch route prepares all uncached sentences in one request.
+8. The learner switches between ready sentence panels without another request.
 
-There is no application-level daily-reading database. Effective reuse depends on a CDN or reverse proxy honoring `s-maxage`.
+The `sentences` array contains exactly three or four complete individual sentences and must reproduce the paragraph exactly; the application does not create sentence pairs or sequences. There is no application-level daily-reading database. Effective reading reuse depends on a CDN or reverse proxy honoring `s-maxage`, while sentence analyses reuse the normal Supabase analysis cache.
 
 ### Image OCR
 
