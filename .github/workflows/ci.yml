@@ -43,6 +43,9 @@ jobs:
       - name: Validate learner content inputs
         run: npm run check:content-inputs
 
+      - name: Validate one-request batch analysis contract
+        run: npm run check:analysis-batch
+
       - name: Validate OCR boundaries and real-image extraction
         run: npm run check:ocr
 

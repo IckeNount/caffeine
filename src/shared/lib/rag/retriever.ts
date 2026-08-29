@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/shared/lib/db/supabase";
 import { getRagConfig } from "@/config/rag";
-import { embedText } from "./embeddings";
+import { embedBatch, embedText } from "./embeddings";
 import {
   dedupeKbChunks,
   formatKbContextSection,
@@ -99,64 +99,92 @@ export interface BuildRAGContextResult {
   ragTraceJson: RagTraceJson;
 }
 
-/**
- * Build the RAG-augmented context string to inject into the LLM prompt.
- * Embeds the sentence once; retrieves KB + past analyses in parallel.
- */
-export async function buildRAGContext(sentence: string): Promise<BuildRAGContextResult> {
+export interface BatchRagContext extends BuildRAGContextResult {
+  sentence: string;
+}
+
+async function buildContextFromEmbedding(
+  sentence: string,
+  embedding: number[],
+  embedMs: number,
+): Promise<BatchRagContext> {
   const cfg = getRagConfig();
-
-  const t0 = Date.now();
-  const embedding = await embedText(sentence);
-  const embedMs = Date.now() - t0;
-  console.log(`⏱️  RAG embed: ${embedMs}ms`);
-
-  const t1 = Date.now();
-  const [kbRaw, pastAnalyses] = await Promise.all([
+  const searchStartedAt = Date.now();
+  const [kbResult, analysesResult] = await Promise.allSettled([
     retrieveContext(embedding, {
       maxChunks: cfg.maxKbChunks,
       minSimilarity: cfg.minKbSimilarity,
     }),
     retrieveSimilarAnalyses(embedding, cfg.maxPastAnalyses),
   ]);
-  const searchMs = Date.now() - t1;
+  const kbRaw = kbResult.status === "fulfilled" ? kbResult.value : [];
+  const pastAnalyses =
+    analysesResult.status === "fulfilled" ? analysesResult.value : [];
+  const searchMs = Date.now() - searchStartedAt;
 
-  const kbDeduped = dedupeKbChunks(kbRaw);
-  const kbForCtx: KbChunkForContext[] = kbDeduped.map((c) => ({
-    id: c.id,
-    content: c.content,
-    document_title: c.document_title,
-    document_category: c.document_category,
-    similarity: c.similarity,
+  const kbForContext: KbChunkForContext[] = dedupeKbChunks(kbRaw).map((chunk) => ({
+    id: chunk.id,
+    content: chunk.content,
+    document_title: chunk.document_title,
+    document_category: chunk.document_category,
+    similarity: chunk.similarity,
   }));
-
-  const kbSection = formatKbContextSection(kbForCtx, {
+  const kbSection = formatKbContextSection(kbForContext, {
     maxCharsPerChunk: cfg.maxKbCharsPerChunk,
     maxTotalChars: cfg.maxKbContextChars,
   });
-
   const fewShotSection = formatCompactFewShotSection(
     pastAnalyses,
     cfg.maxFewShotChars,
-    cfg.minAnalysisSimilarity
+    cfg.minAnalysisSimilarity,
   );
+  const chunkIds = kbForContext.map((chunk) => chunk.id);
 
-  const context = kbSection + fewShotSection;
-  const chunkIds = kbForCtx.map((c) => c.id);
-
-  console.log(
-    `⏱️  RAG search: ${searchMs}ms (${kbForCtx.length} KB chunks, ${pastAnalyses.length} past analyses)`
-  );
-
-  const ragTraceJson: RagTraceJson = {
-    kb_chunk_ids: chunkIds,
-    kb_chunk_count: kbForCtx.length,
-    past_analysis_count: pastAnalyses.length,
-    kb_context_char_estimate: kbSection.length,
-    few_shot_char_estimate: fewShotSection.length,
-    embed_ms: embedMs,
-    search_ms: searchMs,
+  return {
+    sentence,
+    context: kbSection + fewShotSection,
+    chunkIds,
+    embedding,
+    ragTraceJson: {
+      kb_chunk_ids: chunkIds,
+      kb_chunk_count: kbForContext.length,
+      past_analysis_count: pastAnalyses.length,
+      kb_context_char_estimate: kbSection.length,
+      few_shot_char_estimate: fewShotSection.length,
+      embed_ms: embedMs,
+      search_ms: searchMs,
+    },
   };
+}
 
-  return { context, chunkIds, embedding, ragTraceJson };
+/**
+ * Build the RAG-augmented context string to inject into the LLM prompt.
+ * Embeds the sentence once; retrieves KB + past analyses in parallel.
+ */
+export async function buildRAGContext(sentence: string): Promise<BuildRAGContextResult> {
+  const t0 = Date.now();
+  const embedding = await embedText(sentence);
+  const embedMs = Date.now() - t0;
+  console.log(`⏱️  RAG embed: ${embedMs}ms`);
+  const built = await buildContextFromEmbedding(sentence, embedding, embedMs);
+  console.log(
+    `⏱️  RAG search: ${built.ragTraceJson.search_ms}ms (${built.ragTraceJson.kb_chunk_count} KB chunks, ${built.ragTraceJson.past_analysis_count} past analyses)`,
+  );
+  return built;
+}
+
+/** Embed all uncached sentences in one provider call, then retrieve each context independently. */
+export async function buildRAGContexts(sentences: string[]): Promise<BatchRagContext[]> {
+  if (sentences.length === 0) return [];
+  const startedAt = Date.now();
+  const embeddings = await embedBatch(sentences);
+  if (embeddings.length !== sentences.length) {
+    throw new Error("Batch embedding returned an incomplete result.");
+  }
+  const embedMs = Date.now() - startedAt;
+  return Promise.all(
+    embeddings.map((embedding, index) =>
+      buildContextFromEmbedding(sentences[index], embedding, embedMs),
+    ),
+  );
 }

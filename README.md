@@ -17,6 +17,8 @@ The current demo includes:
 
 - a public learner page with typed, daily-reading, example, and image-scan inputs
 - Gemini-powered structured sentence analysis
+- bilingual, non-technical progress guidance for single and reviewed OCR analysis
+- one-request OCR batch analysis with instant ready-result switching and cache reuse
 - a Supabase/pgvector retrieval-augmented generation (RAG) pipeline
 - local browser OCR with Tesseract.js
 - an explicitly gated, consent-based Gemini cloud OCR recovery path
@@ -32,8 +34,8 @@ Authentication, teacher tools, lesson management, transcription, background jobs
 | --- | --- | --- |
 | Web application | Next.js 16 App Router, React 19, TypeScript | Learner UI and server API routes |
 | Styling | Tailwind CSS v4 | Responsive learner interface |
-| Runtime validation | Zod | AI, daily-reading, and dictionary response contracts |
-| Sentence analysis | Gemini `gemini-3.6-flash` | Structured English/Thai pedagogical analysis |
+| Runtime validation | Zod | Analysis, reading, dictionary, OCR, and MCP contracts |
+| Sentence analysis | Gemini `gemini-3.6-flash` through `@google/generative-ai` | Structured English/Thai pedagogical analysis |
 | Daily reading generation | OpenRouter `openrouter/free` | Adapts reviewed source material to A2–B1 English |
 | Embeddings | OpenRouter `openai/text-embedding-3-small` | 1,536-dimensional query and knowledge-base vectors |
 | Data and vector search | Supabase Postgres + pgvector | Knowledge base, similarity search, provenance, and analysis cache |
@@ -43,7 +45,7 @@ Authentication, teacher tools, lesson management, transcription, background jobs
 
 ## System architecture
 
-The application is a modular Next.js monolith. The browser communicates only with same-origin App Router endpoints. Server-only routes and libraries own provider credentials and the Supabase service-role key.
+The learner application is a modular Next.js monolith. Browser application requests use same-origin App Router endpoints. Server-only routes, shared server adapters, and the local MCP process own provider credentials; the Supabase service-role key remains confined to the Next.js server runtime.
 
 ```mermaid
 flowchart TB
@@ -53,18 +55,24 @@ flowchart TB
         Page["Learner page"]
         Inputs["Typed, example, or daily-reading input"]
         LocalOCR["Tesseract.js local OCR"]
+        OCRReview["Editable OCR review and ready panels"]
         Results["LinguBreak results and word lookup"]
     end
 
     subgraph NextApp["Next.js 16 application"]
         AnalyzeAPI["POST /api/analyze"]
+        BatchAPI["POST /api/analyze-batch"]
         ReadingAPI["GET /api/daily-reading"]
         DictionaryAPI["GET /api/dictionary"]
         OcrAPI["GET/POST /api/ocr - feature gated"]
         AnalysisService["LinguBreak analysis service"]
+        BatchService["Cache-aware batch orchestration"]
         ReadingService["Daily-reading service"]
         DictionaryService["Dictionary service"]
-        OcrService["Gemini OCR service"]
+    end
+
+    subgraph ServerModules["Shared server-only modules"]
+        CloudOCR["Gemini OCR adapter"]
     end
 
     McpClient["Local MCP client"]
@@ -93,16 +101,23 @@ flowchart TB
     Page --> Inputs
     Page --> LocalOCR
     Inputs --> AnalyzeAPI
-    LocalOCR --> Inputs
+    LocalOCR --> OCRReview
+    OCRReview -->|explicit reviewed-text action| BatchAPI
     AnalyzeAPI --> AnalysisService
+    BatchAPI --> BatchService
     AnalysisService --> Cache
+    BatchService --> Cache
     AnalysisService -->|embedding request| OpenRouter
+    BatchService -->|one embedding batch for uncached sentences| OpenRouter
     OpenRouter -->|query vector| AnalysisService
     AnalysisService --> Search
+    BatchService --> Search
     Search --> Documents
     Search --> Chunks
     AnalysisService --> Gemini
+    BatchService -->|one structured generation for all uncached sentences| Gemini
     AnalysisService -.->|non-blocking cache write| Cache
+    BatchService -.->|per-sentence best-effort cache writes| Cache
 
     Page --> ReadingAPI
     ReadingAPI --> ReadingService
@@ -115,12 +130,13 @@ flowchart TB
     DictionaryService --> FreeDictionary
 
     Page -.->|explicit recovery consent only| OcrAPI
-    OcrAPI --> OcrService
-    OcrService --> Gemini
+    OcrAPI --> CloudOCR
+    CloudOCR --> Gemini
     McpClient -->|stdio| OcrTool
     OcrTool --> NodeOCR
-    OcrTool -.->|gate plus explicit consent| OcrService
+    OcrTool -.->|gate plus explicit consent| CloudOCR
     AnalyzeAPI --> Results
+    OCRReview -->|select ready result locally| Results
 ```
 
 ### Component responsibilities
@@ -130,20 +146,25 @@ flowchart TB
 | Learner page | `src/app/(student)/page.tsx` | Composes sentence input and result views |
 | Sentence input | `src/features/lingubreak/components/SentenceInput.tsx` | Selects typed, example, reading, or scan input |
 | Analysis client state | `src/features/lingubreak/hooks/useAnalyze.ts` | Calls `/api/analyze` and owns loading/error/result state |
+| Batch client state | `src/features/lingubreak/hooks/useBatchAnalyze.ts` | Calls `/api/analyze-batch` once, validates the response, and tracks which reviewed text produced it |
 | Analysis boundary | `src/app/api/analyze/route.ts` | Validates public requests, maps provider errors, returns JSON |
-| Analysis orchestration | `src/features/lingubreak/lib/ai-providers.ts` | Cache lookup, RAG retrieval, Gemini generation, validation, cache write |
+| Batch analysis boundary | `src/app/api/analyze-batch/route.ts` | Enforces the 10-sentence batch contract and returns sanitized errors |
+| Analysis orchestration | `src/features/lingubreak/lib/ai-providers.ts` | Gemini single and batch structured generation |
+| Batch orchestration | `src/features/lingubreak/lib/batch-analysis.ts` | Reuses cache hits, builds uncached contexts, makes one Gemini call, merges ordered results, and starts cache writes |
+| Analysis cache | `src/features/lingubreak/lib/analysis-cache.ts` | Owns compatible sentence hashing, bulk cache reads, validation, and best-effort writes |
 | RAG retrieval | `src/shared/lib/rag/` | Embeds input, queries pgvector, bounds and formats prompt context |
 | Daily reading | `src/features/daily-reading/` | Selects a reviewed topic, fetches its source, and creates a learner adaptation |
 | Dictionary | `src/features/dictionary/` | Normalizes a selected word and combines Thai and English provider results |
 | Local OCR | `src/shared/lib/ocr/tesseract-ocr.ts` | Runs OCR in the learner's browser without uploading the image |
-| Cloud OCR | `src/app/api/ocr/route.ts` | Reports availability and accepts only gated, same-origin, explicitly consented Gemini requests |
+| OCR contracts and validation | `src/shared/lib/ocr/` | Validates result schemas, signatures, MIME claims, encoded size, dimensions, and pixel count across browser, API, and MCP paths |
+| Cloud OCR | `src/app/api/ocr/route.ts` | Reports availability and accepts only gated, explicitly consented requests; validates browser Origin headers when present |
 | OCR MCP server | `src/mcp/` | Exposes one stdio OCR tool with local Tesseract by default and confines reads to an allowed root |
 | Database client | `src/shared/lib/db/supabase.ts` | Creates the server-only Supabase service-role client |
 | Environment contract | `src/env/schema.ts` | Defines required and optional server environment variables |
 
 ## Sentence-analysis flow
 
-`POST /api/analyze` is the core application path. The service checks the analysis cache before doing any embedding or generation work. A cache miss retrieves both relevant knowledge-base chunks and approved prior analyses, then asks Gemini for a schema-constrained result.
+`POST /api/analyze` remains the typed/example/daily-reading path. The service checks the analysis cache before doing any embedding or generation work. A cache miss retrieves both relevant knowledge-base chunks and approved prior analyses, then asks Gemini for a schema-constrained result. While it runs, the learner sees bilingual, non-technical progress stages; those stages are elapsed-time guidance and do not claim to be live provider telemetry.
 
 ```mermaid
 sequenceDiagram
@@ -182,6 +203,53 @@ sequenceDiagram
 
     UI-->>Learner: Thai translation, chunks, word order, and four steps
 ```
+
+### Reviewed OCR batch-analysis flow
+
+OCR uses a separate explicit batch boundary so a learner does not have to request and wait for each extracted sentence individually. The learner may freely correct unwanted or inaccurate OCR text first. Only **ตรวจข้อความแล้ว · Break down all sentences** starts analysis.
+
+```mermaid
+sequenceDiagram
+    actor Learner
+    participant UI as Editable OCR review
+    participant API as POST /api/analyze-batch
+    participant DB as Supabase cache and RAG
+    participant OR as OpenRouter embeddings
+    participant Gemini as Gemini analysis
+
+    Learner->>UI: Correct extracted text
+    UI-->>Learner: Show sentence count and learner-text estimate
+    Learner->>UI: Confirm Break down all sentences
+    UI->>API: 1-10 distinct reviewed sentences
+    API->>DB: Bulk lookup by sentence hashes
+    DB-->>API: Any validated cached results
+
+    alt Every sentence is cached
+        API-->>UI: Ordered ready results, no new generation
+    else One or more sentences are uncached
+        API->>OR: One embedding request containing all uncached sentences
+        OR-->>API: Ordered embedding vectors
+        par Retrieve teaching context per sentence
+            API->>DB: Knowledge similarity RPC
+            DB-->>API: Bounded knowledge context or an empty result
+        and Retrieve approved examples per sentence
+            API->>DB: Approved-analysis similarity RPC
+            DB-->>API: Bounded examples or an empty result
+        end
+        API->>Gemini: One schema-constrained request containing every uncached sentence
+        Gemini-->>API: Exactly one result per stable sentence ID plus token usage
+        API->>API: Validate completeness and merge with cache hits in input order
+        API-->>UI: Ready results and actual available usage metadata
+        API-->>DB: Best-effort per-sentence cache upserts
+    end
+
+    Learner->>UI: Choose any ready sentence
+    UI-->>Learner: Display stored breakdown immediately, without another API call
+```
+
+The batch accepts 1–10 distinct sentences, a maximum of 500 characters per sentence, and 5,000 sentence characters total. RAG degradation is bounded: if the single embedding batch fails, every uncached sentence uses the base prompt; if one database retrieval fails, only that sentence loses retrieved context. There is deliberately no hidden fallback to multiple Gemini generation calls.
+
+Before submission, the UI estimates learner-text tokens at roughly four characters per token and labels the batch Light, Medium, or High. This is not a Gemini balance or a full billing estimate. Gemini does not provide a trustworthy remaining-credit value through this application. After completion, the UI shows prompt/output/total token metadata when the provider returned it; an all-cached batch clearly reports that no new AI generation was needed.
 
 ### Analysis contract
 
@@ -223,11 +291,52 @@ There is no application-level daily-reading database. Effective reuse depends on
 
 ### Image OCR
 
-JPEG, PNG, and WebP images up to 10 MB are processed with Tesseract in the browser by default. Before OCR, the client verifies the actual file signature, MIME type, dimensions, and pixel count. HEIC/HEIF is selected deliberately so the UI can return an explicit conversion message rather than failing silently. Extracted text remains editable, is split into English sentences, and only the chosen sentence is submitted for analysis.
+JPEG, PNG, and WebP images up to 10 MB are processed with Tesseract in the browser by default. Before OCR, the client verifies the actual file signature, MIME type, dimensions, and pixel count. Images are rejected above 12,000 pixels on either edge or 40 megapixels in total. HEIC/HEIF is accepted by the picker only so the UI can return an explicit conversion message rather than failing silently. Extracted text remains editable and is segmented into English sentences without triggering analysis. After review, one explicit batch action prepares every accepted sentence; the resulting sentence panels can be opened instantly without another LLM request.
 
-If local extraction fails or returns confidence below `0.55`, the UI offers **Improve with cloud OCR — image leaves this device** only when `OCR_CLOUD_ENABLED=true`. The image is never uploaded automatically. The learner must activate that action, and `POST /api/ocr` requires `cloudConsent=true` before it will call Gemini. The route is disabled by default, validates the same image boundaries again, rejects cross-origin browser requests, and returns sanitized provider failures.
+If local extraction fails, returns confidence below `0.55`, or produces no complete sentence, the UI offers **Improve with cloud OCR — image leaves this device** only when `OCR_CLOUD_ENABLED=true`. The image is never uploaded automatically. The learner must activate that action, and `POST /api/ocr` requires `cloudConsent=true` before it will call Gemini. The route is disabled by default, validates the same image boundaries again, rejects mismatched browser Origin headers when one is present, applies a 20-second provider timeout, and returns sanitized provider failures.
+
+```mermaid
+sequenceDiagram
+    actor Learner
+    participant UI as OCR learner UI
+    participant Local as Browser Tesseract
+    participant API as GET/POST /api/ocr
+    participant Batch as POST /api/analyze-batch
+    participant Gemini as Gemini OCR
+
+    Learner->>UI: Choose or capture an image
+    UI->>UI: Validate bytes, MIME, size, and dimensions
+    UI->>Local: Run local English OCR
+    Local-->>UI: Validated OcrResult
+    UI-->>Learner: Editable extracted text; no analysis yet
+
+    opt Poor output and cloud OCR is enabled
+        UI-->>Learner: Offer explicit cloud recovery action
+        Learner->>UI: Confirm image may leave the device
+        UI->>API: image, mode=smart, cloudConsent=true
+        API->>API: Revalidate gate, Origin, fields, and image
+        API->>Gemini: Schema-constrained OCR request
+        Gemini-->>API: Structured extraction
+        API-->>UI: Validated Gemini OcrResult
+    end
+
+    Learner->>UI: Finish correcting the extracted text
+    Learner->>UI: Break down all sentences
+    UI->>Batch: One reviewed sentence batch
+    Batch-->>UI: Validated ready breakdowns
+    Learner->>UI: Select a ready sentence without another request
+```
 
 The local stdio MCP server exposes exactly one tool, `ocr_extract_text`. It accepts a local image path, defaults to Tesseract, and returns the same validated `OcrResult` used by the application. File paths are resolved with `realpath` and must remain beneath `OCR_MCP_ALLOWED_ROOT`; URLs, traversal, symlink escape, missing files, and unsupported formats are rejected. Gemini use through MCP has the same feature gate and explicit `cloudConsent: true` requirement.
+
+| MCP input | Type and default | Behavior |
+| --- | --- | --- |
+| `imagePath` | Required string | Absolute path or path relative to the allowed root |
+| `provider` | `tesseract` by default; optional `gemini` | Selects local or gated cloud extraction |
+| `mode` | `smart` by default; optional `text` | Controls Gemini extraction instructions; local Tesseract ignores it |
+| `cloudConsent` | Optional boolean | Must be `true` when `provider=gemini` |
+
+Successful tool calls return readable text content plus structured fields: `text`, `paragraphs`, `confidence`, `detectedLanguage`, `processingTimeMs`, and `provider`.
 
 ```bash
 OCR_MCP_ALLOWED_ROOT=/absolute/safe/image/root npm run mcp:ocr
@@ -307,15 +416,16 @@ The application uses a Supabase service-role key and therefore bypasses normal c
 
 ## API reference
 
-The learner routes are public and currently have no application authentication or application rate limiter. Cloud OCR adds a deny-by-default feature gate, explicit user consent, same-origin enforcement, and deployment-level controls; those controls are not user authentication.
+The learner routes are public and currently have no application authentication or application rate limiter. Cloud OCR adds a deny-by-default feature gate, explicit user consent, and browser Origin validation when the header is present; those controls are not user authentication or distributed abuse protection.
 
 | Method and path | Request | Success | Main errors | Cache policy |
 | --- | --- | --- | --- | --- |
 | `POST /api/analyze` | JSON `{ "sentence": string, "provider"?: "gemini" }` | `200` `AnalysisResult` | `400`, `429`, `500` | Supabase application cache |
+| `POST /api/analyze-batch` | JSON `{ "sentences": string[1..10], "provider"?: "gemini" }` | `200` ordered items plus cache/generation and token usage | `400`, `429`, `500` | Bulk Supabase read; per-sentence best-effort writes |
 | `GET /api/daily-reading` | None | `200` `DailyReading` | `503` | `s-maxage=86400`, SWR 1 hour |
 | `GET /api/dictionary?word=...` | One normalized English word, maximum 50 characters | `200` full or partial lookup | `400`, `404`, `502` | `s-maxage=86400`, SWR 7 days |
 | `GET /api/ocr` | None | `200` `{ "enabled": boolean }` | None | `no-store` |
-| `POST /api/ocr` | Multipart `image`, `cloudConsent=true`; optional `mode=text|smart` | `200` `OcrResult` | `400`, `403`, `404`, `413`, `422`, `429`, `500` | None |
+| `POST /api/ocr` | Multipart `image`, `cloudConsent=true`; optional `mode=text|smart` | `200` `OcrResult` | `400`, `403`, `404`, `413`, `422`, `429`, `500`, `502`, `504` | None |
 
 Example analysis request:
 
@@ -324,6 +434,16 @@ curl -X POST http://localhost:3000/api/analyze \
   -H 'Content-Type: application/json' \
   -d '{"sentence":"The student who studied hard passed the exam.","provider":"gemini"}'
 ```
+
+Example reviewed OCR batch request:
+
+```bash
+curl -X POST http://localhost:3000/api/analyze-batch \
+  -H 'Content-Type: application/json' \
+  -d '{"sentences":["The student studied hard.","She passed the exam."],"provider":"gemini"}'
+```
+
+The batch response contains `items[]` with `sentence`, `result`, and `source` (`cache` or `generated`). Its `usage` object reports generated and cached sentence counts plus nullable `promptTokens`, `outputTokens`, and `totalTokens`. Token values describe the new Gemini request only; cached analyses were generated earlier.
 
 The route registry lives in `infra/gateway-routes.yaml`. Run `npm run check:routes` whenever adding, removing, or renaming an API namespace.
 
@@ -334,6 +454,7 @@ src/
   app/
     (student)/page.tsx          Public learner experience
     api/analyze/route.ts        Sentence-analysis boundary
+    api/analyze-batch/route.ts  Reviewed OCR batch-analysis boundary
     api/daily-reading/route.ts  Daily-reading boundary
     api/dictionary/route.ts     Vocabulary boundary
     api/ocr/route.ts            Gated cloud OCR boundary
@@ -360,6 +481,8 @@ knowledge-base/
 scripts/                        Database, ingestion, health, contract, and smoke tools
 infra/                          Route registry and example Nginx reverse proxy
 docs/                           Design, operations, and historical migration notes
+tests/                          OCR fixtures and the focused Chromium learner flow
+playwright.config.ts            Single-project OCR browser-test configuration
 ```
 
 ## Local development
@@ -371,6 +494,7 @@ docs/                           Design, operations, and historical migration not
 - a Supabase project with pgvector available
 - an OpenRouter API key with access to embeddings
 - a Gemini Developer API key with access to the configured models
+- Google Chrome when running `npm run e2e:ocr` locally; CI installs Playwright Chromium
 
 ### Setup
 
@@ -432,7 +556,7 @@ docs/                           Design, operations, and historical migration not
 | `LINGUBREAK_PROMPT_VERSION` | No | Analysis provenance override |
 | `KB_INGEST_VERSION` | No | Knowledge-base provenance override |
 
-Keep `.env.example`, `.env.production.example`, and `src/env/schema.ts` synchronized when the environment contract changes.
+Keep `.env.example`, `.env.production.example`, and `src/env/schema.ts` synchronized when the web environment contract changes. `OCR_MCP_ALLOWED_ROOT` is process configuration for the standalone MCP server and is intentionally not part of the Next.js environment schema.
 
 ## Knowledge-base operations
 
@@ -464,10 +588,11 @@ After changing knowledge-base content:
 | `npm run check:content-inputs` | Validate daily-reading, sentence-splitting, route, and camera contracts | Static/local checks |
 | `npm run check:dictionary` | Validate full and degraded dictionary responses | Uses test doubles |
 | `npm run check:learner-ui` | Validate Thai-first result and vocabulary contracts | Static/local checks |
+| `npm run check:analysis-batch` | Validate limits, usage schema, cache planning, and one-call orchestration | Deterministic test doubles; no provider call |
 | `npm run check:routes` | Compare App Router APIs with gateway and Nginx configuration | Static/local checks |
 | `npm run check:ocr` | Validate schemas, image boundaries, route gates, path confinement, and real-image local OCR | Downloads/caches Tesseract English data on first run |
 | `npm run check:mcp:ocr` | Start the stdio MCP process, discover its one tool, and exercise success and rejection contracts | Local MCP subprocess and real-image OCR |
-| `npm run e2e:ocr` | Upload the fixture in Chromium, edit extracted text, choose a sentence, and confirm no cloud upload | Playwright Chromium; starts the dev server |
+| `npm run e2e:ocr` | Upload the fixture, edit text, mock one batch response, select a ready result, and confirm no cloud or single-sentence request | Playwright Chromium; starts the dev server |
 | `npm run check:ocr:gemini-live` | Make exactly one real Gemini OCR fixture call | Skips unless `OCR_LIVE_GEMINI=1`; incurs provider usage |
 | `npm run mcp:ocr` | Start the OCR MCP server over stdio | Set `OCR_MCP_ALLOWED_ROOT` to the intended safe root |
 | `npm run health:api` | Probe environment, Gemini, OpenRouter, Supabase tables, embeddings, and RAG RPCs | Makes live provider calls |
@@ -483,6 +608,7 @@ npm run check:env
 npm run check:content-inputs
 npm run check:dictionary
 npm run check:learner-ui
+npm run check:analysis-batch
 npm run check:routes
 npm run check:ocr
 npm run check:mcp:ocr
@@ -498,6 +624,8 @@ BASE_URL=http://127.0.0.1:3000 npm run smoke:api
 ```
 
 Run `npm run health:api` separately when live provider calls and their potential cost are acceptable.
+
+The ordinary GitHub Actions pipeline runs the environment, route, content, batch-analysis, OCR, MCP, Chromium, lint, typecheck, build, and production API smoke gates. Its batch gate uses deterministic dependencies and deliberately makes no live Gemini request. The pipeline also does not run the opt-in live Gemini OCR smoke test.
 
 ## Deployment handover
 
@@ -532,6 +660,7 @@ The service is stateless apart from Supabase and provider-side usage limits. Hor
 | Dictionary returns `502` | MyMemory failed or timed out | Retry and inspect provider availability |
 | Scan is slow | Tesseract model loading or a large/unclear image | Use a smaller, clear, well-lit image |
 | Cloud OCR action is absent | Cloud OCR is disabled by default | Set `OCR_CLOUD_ENABLED=true` only after approving the privacy and abuse controls |
+| Cloud OCR returns `502` or `504` | Gemini authentication/provider failure or the 20-second OCR timeout | Check `GEMINI_API_KEY`, `GEMINI_OCR_MODEL`, provider status, and server logs |
 | MCP rejects an image path | Path is outside `OCR_MCP_ALLOWED_ROOT`, escaped through a symlink, or is not a supported file | Use a real JPEG, PNG, or WebP file beneath the configured root |
 | Local boot fails during environment parsing | A required key is absent or malformed | Run `npm run check:env` |
 | Vector RPC reports a dimension error | Database schema and embedding model differ | Confirm both are configured for 1,536 dimensions |
@@ -540,8 +669,8 @@ Provider and RAG timings are written to server logs during analysis. There is no
 
 ## Security and privacy notes
 
-- Learner APIs have no authentication, per-user quota, CAPTCHA, or application rate limiter. Cloud OCR is additionally deny-by-default and same-origin, but gateway rate limits are still required before enabling it.
-- User sentences are sent to OpenRouter for embeddings, to Gemini for analysis, and may be stored in Supabase with the generated result and retrieval trace.
+- Learner APIs have no authentication, per-user quota, CAPTCHA, or application rate limiter. Cloud OCR is additionally deny-by-default and rejects mismatched browser Origin headers when present, but gateway rate limits are still required before enabling it.
+- User sentences are sent to OpenRouter for embeddings, to Gemini for analysis, and may be stored in Supabase with the generated result and retrieval trace. OCR batch mode sends all uncached reviewed sentences together in one Gemini prompt.
 - Learner-image OCR runs locally by default. The cloud recovery action clearly states that the image leaves the device and requires an intentional click plus server-side consent validation.
 - The MCP tool reads only real files beneath `OCR_MCP_ALLOWED_ROOT`; it rejects URL input, traversal, and symlink escape.
 - Dictionary words are sent to MyMemory and Free Dictionary API.
@@ -554,9 +683,11 @@ Before accepting personal, confidential, or student-identifying content, establi
 ## Known limitations and deliberate trade-offs
 
 - Analysis is synchronous; slow model responses hold the HTTP connection open.
+- OCR batch analysis is one synchronous request capped at 10 sentences. It reduces request count but can still take longer than a single sentence and has no background resume behavior.
 - The provider type currently permits only Gemini. OpenRouter and DeepSeek analysis adapters are dormant and are not automatic fallbacks.
 - RAG failures degrade silently to prompt-only analysis, improving availability but making reduced answer grounding less visible to the learner.
 - Cache persistence is best effort and uses a small non-cryptographic sentence hash.
+- The pre-submit token number estimates learner text only. Remaining Gemini credit must be checked in the provider console; it is not available from the application.
 - Public cache headers rely on deployment infrastructure to provide shared caching.
 - External free services have no repository-controlled availability guarantee.
 - Local Tesseract OCR is private and inexpensive but can be slow and less accurate than hosted vision models.
@@ -570,6 +701,8 @@ Before accepting personal, confidential, or student-identifying content, establi
 | Change | Start here | Also review |
 | --- | --- | --- |
 | Change analysis prompt or teaching method | `src/features/lingubreak/lib/ai-providers.ts` | `src/features/lingubreak/lib/schema.ts`, prompt version |
+| Change OCR batch limits or response contract | `src/features/lingubreak/lib/batch-schema.ts` | Batch route, OCR batch UI, deterministic contract check |
+| Change batch cache/RAG orchestration | `src/features/lingubreak/lib/batch-analysis.ts` | `analysis-cache.ts`, `src/shared/lib/rag/retriever.ts` |
 | Change Gemini analysis model | `GEMINI_ANALYSIS_MODEL` in `ai-providers.ts` | Health checks, README, provider quota |
 | Tune RAG limits | `src/config/rag.ts` or `RAG_*` environment variables | Prompt size and latency |
 | Change embedding model | `src/shared/lib/rag/embeddings.ts` | Database vector dimensions, setup SQL, ingestion |

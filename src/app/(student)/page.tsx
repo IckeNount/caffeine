@@ -3,6 +3,7 @@
 import { AlertCircle, ArrowDown, Sparkles } from "lucide-react";
 import { WordLookup } from "@/features/dictionary";
 import ChunkDisplay from "@/features/lingubreak/components/ChunkDisplay";
+import AnalysisProgress from "@/features/lingubreak/components/AnalysisProgress";
 import OrderComparison from "@/features/lingubreak/components/OrderComparison";
 import SentenceInput from "@/features/lingubreak/components/SentenceInput";
 import StepAccordion from "@/features/lingubreak/components/StepAccordion";
@@ -11,7 +12,7 @@ import { useAnalyze } from "@/features/lingubreak/hooks/useAnalyze";
 import { DEFAULT_AI_PROVIDER } from "@/features/lingubreak/lib/providers";
 
 export default function Home() {
-  const { result, loading, error, analyze, reset } = useAnalyze();
+  const { result, loading, error, analyze, showResult, reset } = useAnalyze();
 
   return (
     <div className="min-h-screen">
@@ -47,6 +48,7 @@ export default function Home() {
         <section className="learner-card learner-card-accent mt-8 p-5 pt-7 sm:p-7 sm:pt-9">
           <SentenceInput
             onAnalyze={(sentence) => analyze(sentence, DEFAULT_AI_PROVIDER)}
+            onReadyAnalysis={(_sentence, readyResult) => showResult(readyResult)}
             onReset={reset}
             loading={loading}
             hasResult={result !== null}
@@ -54,12 +56,8 @@ export default function Home() {
         </section>
 
         {loading && (
-          <div className="mt-6 flex items-center justify-center gap-3 rounded-2xl bg-white/70 px-4 py-4 text-center" role="status">
-            <Sparkles className="h-5 w-5 animate-pulse text-[#B47700]" aria-hidden="true" />
-            <p lang="th" className="font-thai text-base font-medium">
-              กำลังแกะประโยคให้อ่านง่ายขึ้น…
-              <span className="ml-2 text-sm text-[var(--text-secondary)]">Analyzing</span>
-            </p>
+          <div className="mt-6">
+            <AnalysisProgress variant="single" />
           </div>
         )}
 

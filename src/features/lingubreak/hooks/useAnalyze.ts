@@ -9,6 +9,7 @@ interface UseAnalyzeReturn {
   loading: boolean;
   error: string | null;
   analyze: (sentence: string, provider: AIProvider) => Promise<void>;
+  showResult: (result: AnalysisResult) => void;
   reset: () => void;
 }
 
@@ -49,5 +50,11 @@ export function useAnalyze(): UseAnalyzeReturn {
     setLoading(false);
   }, []);
 
-  return { result, loading, error, analyze, reset };
+  const showResult = useCallback((readyResult: AnalysisResult) => {
+    setResult(readyResult);
+    setError(null);
+    setLoading(false);
+  }, []);
+
+  return { result, loading, error, analyze, showResult, reset };
 }

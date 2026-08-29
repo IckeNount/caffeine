@@ -1,12 +1,13 @@
-import {
-  GoogleGenerativeAI,
-  SchemaType,
-} from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
-import { getKbVersion, LINGUBREAK_PROMPT_VERSION } from "@/config/rag";
-import { EMBEDDING_DIM, EMBEDDING_MODEL } from "@/shared/lib/rag/embeddings";
 import type { RagTraceJson } from "@/shared/lib/rag/retriever";
+import { cacheAnalysis, getCachedAnalysis } from "./analysis-cache";
+import {
+  BatchProviderResponseSchema,
+  type BatchAnalysisUsage,
+  type BatchProviderItem,
+} from "./batch-schema";
 import {
   AnalysisResultSchema,
   parseAnalysisResult,
@@ -24,7 +25,7 @@ const DEEPSEEK_ANALYSIS_MODEL = "deepseek-chat";
 
 // ── Shared System Prompt ────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are LinguBreak, an expert English-Thai linguistics teacher. Your job is to break down complex English sentences for Thai students learning English.
+export const SYSTEM_PROMPT = `You are LinguBreak, an expert English-Thai linguistics teacher. Your job is to break down complex English sentences for Thai students learning English.
 
 CRITICAL LINGUISTIC CONTEXT FOR THAI STUDENTS:
 1. In Thai, modifiers and adjectives come AFTER the noun (e.g., "cat black" not "black cat")
@@ -80,99 +81,6 @@ async function getRAGContext(sentence: string): Promise<{
     console.warn(`⚠️  RAG unavailable (${reason}) — running in prompt-only mode`);
     return { context: "", chunkIds: [], embedding: null, ragTraceJson: null };
   }
-}
-
-// ── Caching ─────────────────────────────────────────────────────────
-
-async function getCachedAnalysis(
-  sentenceHash: string,
-  provider: AIProvider,
-): Promise<AnalysisResult | null> {
-  try {
-    const { supabaseAdmin } = await import("@/shared/lib/db/supabase");
-    const { data } = await supabaseAdmin
-      .from("analyses")
-      .select("result_json")
-      .eq("sentence_hash", sentenceHash)
-      .eq("provider", provider)
-      .single();
-
-    if (data?.result_json) {
-      return parseAnalysisResult(data.result_json);
-    }
-  } catch {
-    // Cache not available
-  }
-  return null;
-}
-
-/** UUID strings from kb_chunks — safe for Postgres uuid[] when valid. */
-function chunkIdsToUuidArray(chunkIds: string[]): string[] | null {
-  const uuidRe =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  const allValid = chunkIds.length > 0 && chunkIds.every((id) => uuidRe.test(id));
-  return allValid ? chunkIds : null;
-}
-
-async function cacheAnalysis(
-  sentence: string,
-  sentenceHash: string,
-  provider: AIProvider,
-  llmModel: string,
-  result: AnalysisResult,
-  chunkIds: string[],
-  embeddingFromRag: number[] | null,
-  ragTraceJson: RagTraceJson | null
-): Promise<void> {
-  try {
-    const { supabaseAdmin } = await import("@/shared/lib/db/supabase");
-
-    let embedding: number[] | null = embeddingFromRag;
-    if (!embedding) {
-      try {
-        const { embedText } = await import("@/shared/lib/rag/embeddings");
-        embedding = await embedText(sentence);
-      } catch {
-        embedding = null;
-      }
-    }
-
-    const retrievedKb = chunkIdsToUuidArray(chunkIds);
-
-    const row: Record<string, unknown> = {
-      sentence,
-      sentence_hash: sentenceHash,
-      embedding: embedding ? JSON.stringify(embedding) : null,
-      provider,
-      llm_model: llmModel,
-      embedding_model: EMBEDDING_MODEL,
-      embedding_dim: EMBEDDING_DIM,
-      prompt_version: LINGUBREAK_PROMPT_VERSION,
-      kb_version: getKbVersion(),
-      result_json: result,
-      rag_chunks_used: chunkIds,
-      retrieved_kb_chunk_ids: retrievedKb,
-      rag_trace_json: ragTraceJson,
-      status: "draft",
-    };
-
-    await supabaseAdmin.from("analyses").upsert(row, {
-      onConflict: "sentence_hash",
-    });
-  } catch {
-    // Caching failed — non-critical
-  }
-}
-
-function hashSentence(sentence: string): string {
-  // Simple hash for dedup — works in both Node and Edge runtime
-  let hash = 0;
-  for (let i = 0; i < sentence.length; i++) {
-    const char = sentence.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0;
-  }
-  return Math.abs(hash).toString(36);
 }
 
 // ── OpenRouter Demo Provider ────────────────────────────────────────
@@ -269,7 +177,7 @@ export async function analyzeWithDeepSeek(
 
 // ── Gemini Provider ─────────────────────────────────────────────────
 
-const geminiSchema = {
+export const geminiSchema = {
   type: SchemaType.OBJECT,
   properties: {
     chunks: {
@@ -350,6 +258,76 @@ export async function analyzeWithGemini(
   return parseAnalysisResult(JSON.parse(text));
 }
 
+export interface GeminiBatchInput {
+  id: string;
+  sentence: string;
+  ragContext: string;
+}
+
+export interface GeminiBatchResult {
+  items: BatchProviderItem[];
+  usage: Pick<
+    BatchAnalysisUsage,
+    "promptTokens" | "outputTokens" | "totalTokens"
+  >;
+}
+
+const batchGeminiSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    items: {
+      type: SchemaType.ARRAY,
+      items: {
+        type: SchemaType.OBJECT,
+        properties: {
+          id: { type: SchemaType.STRING },
+          result: geminiSchema,
+        },
+        required: ["id", "result"],
+      },
+    },
+  },
+  required: ["items"],
+};
+
+export async function analyzeWithGeminiBatch(
+  inputs: GeminiBatchInput[],
+): Promise<GeminiBatchResult> {
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+  const model = genAI.getGenerativeModel({
+    model: GEMINI_ANALYSIS_MODEL,
+    systemInstruction: `${SYSTEM_PROMPT}\n\nBATCH RULES:\n- Analyze every item independently.\n- Return exactly one result for each supplied id.\n- Never mix words, chunks, or explanations between sentences.`,
+    generationConfig: {
+      responseMimeType: "application/json",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      responseSchema: batchGeminiSchema as any,
+      temperature: 0.3,
+      maxOutputTokens: 65_536,
+    },
+  });
+  const payload = inputs.map(({ id, sentence, ragContext }) => ({
+    id,
+    sentence,
+    relevant_learning_context: ragContext,
+  }));
+  const generated = await model.generateContent(
+    `Analyze every item below with the LinguBreak 4-step method. Preserve each id exactly.\n\n${JSON.stringify(payload)}`,
+  );
+  const parsed = BatchProviderResponseSchema.parse(
+    JSON.parse(generated.response.text()),
+  );
+  const usage = generated.response.usageMetadata;
+
+  return {
+    items: parsed.items,
+    usage: {
+      promptTokens: usage?.promptTokenCount ?? null,
+      outputTokens: usage?.candidatesTokenCount ?? null,
+      totalTokens: usage?.totalTokenCount ?? null,
+    },
+  };
+}
+
 // ── Public API ──────────────────────────────────────────────────────
 
 export async function analyzeSentence(
@@ -357,11 +335,10 @@ export async function analyzeSentence(
   provider: AIProvider = DEFAULT_AI_PROVIDER,
 ): Promise<AnalysisResult> {
   const totalStart = Date.now();
-  const sentenceHash = hashSentence(sentence.trim().toLowerCase());
 
   // 1. Check cache first
   const t1 = Date.now();
-  const cached = await getCachedAnalysis(sentenceHash, provider);
+  const cached = await getCachedAnalysis(sentence, provider);
   console.log(`⏱️  Cache check: ${Date.now() - t1}ms`);
   if (cached) {
     console.log("✅ Cache hit for sentence");
@@ -385,16 +362,15 @@ export async function analyzeSentence(
   console.log(`⏱️  LLM (${provider}): ${Date.now() - t3}ms`);
 
   // 4. Cache the result (async, non-blocking)
-  cacheAnalysis(
+  cacheAnalysis({
     sentence,
-    sentenceHash,
     provider,
-    model,
+    llmModel: model,
     result,
     chunkIds,
-    ragEmbedding,
-    ragTraceJson
-  ).catch(() => {});
+    embedding: ragEmbedding,
+    ragTraceJson,
+  }).catch(() => {});
 
   console.log(`⏱️  Total analyze: ${Date.now() - totalStart}ms`);
   return result;

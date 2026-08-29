@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, ChevronDown, Loader2, RotateCcw, ScanLine, WandSparkles } from "lucide-react";
+import { BookOpen, ChevronDown, RotateCcw, ScanLine, WandSparkles } from "lucide-react";
 import { DailyReadingPanel } from "@/features/daily-reading";
 import { OcrInputPanel } from "@/features/ocr";
+import type { AnalysisResult } from "@/features/lingubreak/lib/schema";
 
 const EXAMPLE_SENTENCES = [
   "The student who studied hard passed the exam that was given by the professor.",
@@ -15,6 +16,7 @@ const EXAMPLE_SENTENCES = [
 
 interface SentenceInputProps {
   onAnalyze: (sentence: string) => void;
+  onReadyAnalysis: (sentence: string, result: AnalysisResult) => void;
   onReset: () => void;
   loading: boolean;
   hasResult: boolean;
@@ -22,6 +24,7 @@ interface SentenceInputProps {
 
 export default function SentenceInput({
   onAnalyze,
+  onReadyAnalysis,
   onReset,
   loading,
   hasResult,
@@ -29,10 +32,18 @@ export default function SentenceInput({
   const [sentence, setSentence] = useState("");
   const [showExamples, setShowExamples] = useState(false);
   const [activeSource, setActiveSource] = useState<"daily" | "scan" | null>(null);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const busy = loading || batchLoading;
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (sentence.trim() && !loading) onAnalyze(sentence.trim());
+    if (sentence.trim() && !busy) onAnalyze(sentence.trim());
+  };
+
+  const chooseReadyAnalysis = (value: string, result: AnalysisResult) => {
+    setSentence(value);
+    setShowExamples(false);
+    onReadyAnalysis(value, result);
   };
 
   const chooseSentence = (value: string) => {
@@ -61,7 +72,7 @@ export default function SentenceInput({
         <button
           type="button"
           onClick={() => setActiveSource((source) => (source === "daily" ? null : "daily"))}
-          disabled={loading}
+          disabled={busy}
           aria-expanded={activeSource === "daily"}
           className={`learner-button ${activeSource === "daily" ? "learner-button-primary" : "learner-button-quiet"}`}
         >
@@ -71,7 +82,7 @@ export default function SentenceInput({
         <button
           type="button"
           onClick={() => setActiveSource((source) => (source === "scan" ? null : "scan"))}
-          disabled={loading}
+          disabled={busy}
           aria-expanded={activeSource === "scan"}
           className={`learner-button ${activeSource === "scan" ? "learner-button-primary" : "learner-button-quiet"}`}
         >
@@ -81,7 +92,11 @@ export default function SentenceInput({
       </div>
 
       <DailyReadingPanel open={activeSource === "daily"} onSelect={chooseSentence} />
-      <OcrInputPanel open={activeSource === "scan"} onSelect={chooseSentence} />
+      <OcrInputPanel
+        open={activeSource === "scan"}
+        onReadyAnalysis={chooseReadyAnalysis}
+        onLoadingChange={setBatchLoading}
+      />
 
       <div>
         <label htmlFor="sentence-input" className="eyebrow">ประโยคภาษาอังกฤษ · English sentence</label>
@@ -93,7 +108,7 @@ export default function SentenceInput({
             placeholder="Type or paste one English sentence…"
             className="learner-input min-h-[128px] resize-y p-4 pb-9 text-lg leading-relaxed"
             maxLength={500}
-            disabled={loading}
+            disabled={busy}
           />
           <span className="absolute bottom-3 right-4 text-xs tabular-nums text-[var(--text-secondary)]">
             {sentence.length}/500
@@ -105,6 +120,7 @@ export default function SentenceInput({
         <button
           type="button"
           onClick={() => setShowExamples((open) => !open)}
+          disabled={busy}
           aria-expanded={showExamples}
           className="inline-flex min-h-11 items-center gap-2 rounded-xl px-2 text-sm font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
         >
@@ -118,6 +134,7 @@ export default function SentenceInput({
                 key={example}
                 type="button"
                 onClick={() => chooseSentence(example)}
+                disabled={busy}
                 className="sentence-choice"
               >
                 <span className="sentence-number">{index + 1}</span>
@@ -131,11 +148,11 @@ export default function SentenceInput({
       <div className="flex flex-col gap-3 sm:flex-row">
         <button
           type="submit"
-          disabled={!sentence.trim() || loading}
+          disabled={!sentence.trim() || busy}
           className="learner-button learner-button-primary flex-1 px-6 py-3.5 text-base"
         >
           {loading ? (
-            <><Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />กำลังวิเคราะห์…</>
+            <><WandSparkles className="h-5 w-5 motion-safe:animate-pulse" aria-hidden="true" />กำลังแกะประโยค… · Working on it</>
           ) : (
             <><WandSparkles className="h-5 w-5" aria-hidden="true" />แกะประโยค · Break it down</>
           )}

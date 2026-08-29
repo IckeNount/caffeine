@@ -2,8 +2,8 @@ function normalize(value: string): string {
   return value.replace(/\s+/g, " ").trim();
 }
 
-/** Split OCR or reading text into sentences accepted by `/api/analyze`. */
-export function splitEnglishSentences(text: string): string[] {
+/** Segment OCR or reading text without silently removing over-limit sentences. */
+export function segmentEnglishSentences(text: string): string[] {
   const normalized = normalize(text);
   if (!normalized) return [];
 
@@ -17,7 +17,10 @@ export function splitEnglishSentences(text: string): string[] {
         )
       : normalized.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [];
 
-  return segments
-    .map(normalize)
-    .filter((sentence) => sentence.length > 0 && sentence.length <= 500);
+  return segments.map(normalize).filter((sentence) => sentence.length > 0);
+}
+
+/** Split text into sentences accepted by the single-sentence analysis endpoint. */
+export function splitEnglishSentences(text: string): string[] {
+  return segmentEnglishSentences(text).filter((sentence) => sentence.length <= 500);
 }

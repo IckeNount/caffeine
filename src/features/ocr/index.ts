@@ -3,5 +3,6 @@
 
 export { default as ImageUploader } from "./components/ImageUploader";
 export { default as OcrInputPanel } from "./components/OcrInputPanel";
+export { default as OcrBatchAnalysis } from "./components/OcrBatchAnalysis";
 export { default as TextEditor } from "./components/TextEditor";
 export { useOcr } from "./hooks/useOcr";

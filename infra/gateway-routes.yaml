@@ -5,6 +5,8 @@
 prefixes:
   - path: /api/analyze
     auth: none
+  - path: /api/analyze-batch
+    auth: none
   - path: /api/daily-reading
     auth: none
   - path: /api/dictionary

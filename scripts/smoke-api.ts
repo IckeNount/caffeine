@@ -66,6 +66,16 @@ async function main() {
     },
   );
   await expectStatus(
+    "/api/analyze-batch",
+    400,
+    "public batch analysis validation (empty sentences)",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sentences: [] }),
+    },
+  );
+  await expectStatus(
     "/api/analyze",
     400,
     "public analysis validation (direct provider disabled)",

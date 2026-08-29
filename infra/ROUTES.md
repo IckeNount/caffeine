@@ -8,6 +8,7 @@ API handlers live under `src/app/**/route.ts`. Gateway expectations are tracked 
 | Route pattern | Service | Gateway registered | Auth required | Notes |
 | --- | --- | --- | --- | --- |
 | `/api/analyze` | Next | `/api/analyze` | No | LinguBreak + RAG sentence analysis |
+| `/api/analyze-batch` | Next | `/api/analyze-batch` | No | One Gemini generation for all uncached sentences in a reviewed OCR batch (maximum 10) |
 | `/api/daily-reading` | Next | `/api/daily-reading` | No | Cached A2–B1 reading adapted from a reviewed Simple English Wikipedia topic |
 | `/api/ocr` | Next | `/api/ocr` | Feature gate | Optional Gemini OCR; `POST` is unavailable unless `OCR_CLOUD_ENABLED=true` and the learner explicitly consents |
 

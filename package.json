@@ -12,6 +12,7 @@
     "check:content-inputs": "tsx scripts/check-content-inputs.ts",
     "check:dictionary": "tsx scripts/check-dictionary.ts",
     "check:learner-ui": "tsx scripts/check-learner-ui.ts",
+    "check:analysis-batch": "tsx scripts/check-analysis-batch.ts",
     "check:ocr": "tsx scripts/check-ocr.ts",
     "check:mcp:ocr": "tsx scripts/check-mcp-ocr.ts",
     "check:ocr:gemini-live": "tsx scripts/check-ocr-gemini-live.ts",

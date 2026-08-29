@@ -13,6 +13,14 @@ const page = read("src/app/(student)/page.tsx");
 const steps = read(
   "src/features/lingubreak/components/StepAccordion.tsx",
 );
+const progress = read(
+  "src/features/lingubreak/components/AnalysisProgress.tsx",
+);
+const sentenceInput = read(
+  "src/features/lingubreak/components/SentenceInput.tsx",
+);
+const ocrInput = read("src/features/ocr/components/OcrInputPanel.tsx");
+const ocrBatch = read("src/features/ocr/components/OcrBatchAnalysis.tsx");
 
 assert.match(wordLookup, /aria-pressed/);
 assert.match(wordLookup, /aria-live="polite"/);
@@ -27,5 +35,16 @@ assert.match(steps, /aria-controls/);
 assert.match(steps, /step\.title_thai[\s\S]*step\.title/);
 assert.match(steps, /step\.description_thai[\s\S]*step\.description/);
 assert.doesNotMatch(steps, /truncate/);
+assert.match(progress, /เตรียมประโยคของคุณ/);
+assert.match(progress, /Preparing your sentence/);
+assert.match(progress, /aria-current/);
+assert.match(progress, /motion-reduce/);
+assert.doesNotMatch(sentenceInput, /Loader2/);
+assert.match(ocrBatch, /ตรวจข้อความแล้ว/);
+assert.match(ocrBatch, /Break down all sentences/);
+assert.match(ocrBatch, /พร้อมแล้ว/);
+assert.match(ocrBatch, /View breakdown/);
+assert.doesNotMatch(ocrInput, /SentencePicker/);
+assert.match(ocrInput, /onReadyAnalysis/);
 
 console.log("check:learner-ui OK");

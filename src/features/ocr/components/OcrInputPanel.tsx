@@ -1,19 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import SentencePicker from "@/features/lingubreak/components/SentencePicker";
-import { splitEnglishSentences } from "@/shared/lib/text/split-english-sentences";
+import type { AnalysisResult } from "@/features/lingubreak/lib/schema";
+import { segmentEnglishSentences } from "@/shared/lib/text/split-english-sentences";
 import { useOcr } from "../hooks/useOcr";
 import ImageUploader from "./ImageUploader";
+import OcrBatchAnalysis from "./OcrBatchAnalysis";
 
 const LOW_CONFIDENCE = 0.55;
 
 interface OcrInputPanelProps {
   open: boolean;
-  onSelect: (sentence: string) => void;
+  onReadyAnalysis: (sentence: string, result: AnalysisResult) => void;
+  onLoadingChange?: (loading: boolean) => void;
 }
 
-export default function OcrInputPanel({ open, onSelect }: OcrInputPanelProps) {
+export default function OcrInputPanel({
+  open,
+  onReadyAnalysis,
+  onLoadingChange,
+}: OcrInputPanelProps) {
   const {
     result,
     isLoading,
@@ -41,7 +47,7 @@ export default function OcrInputPanel({ open, onSelect }: OcrInputPanelProps) {
   }, [open]);
 
   const sentences = useMemo(
-    () => splitEnglishSentences(editableText),
+    () => segmentEnglishSentences(editableText),
     [editableText],
   );
   const needsRecovery =
@@ -96,7 +102,7 @@ export default function OcrInputPanel({ open, onSelect }: OcrInputPanelProps) {
         <div className="space-y-4">
           <div className="space-y-2">
             <label htmlFor="ocr-editable-text" className="eyebrow">
-              Review the extracted text
+              ตรวจและแก้ไขข้อความ · Review extracted text
             </label>
             <textarea
               id="ocr-editable-text"
@@ -107,10 +113,15 @@ export default function OcrInputPanel({ open, onSelect }: OcrInputPanelProps) {
           </div>
 
           {sentences.length > 0 ? (
-            <SentencePicker sentences={sentences} onSelect={onSelect} />
+            <OcrBatchAnalysis
+              sentences={sentences}
+              reviewedText={editableText}
+              onReady={onReadyAnalysis}
+              onLoadingChange={onLoadingChange}
+            />
           ) : (
             <p className="text-sm text-[var(--text-secondary)]">
-              No complete sentence is ready yet. Correct the text above or try a clearer image.
+              ยังไม่พบประโยคที่พร้อม · Correct the text above or try a clearer image.
             </p>
           )}
         </div>
