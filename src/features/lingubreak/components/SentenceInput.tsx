@@ -34,6 +34,7 @@ export default function SentenceInput({
   const [activeSource, setActiveSource] = useState<"daily" | "scan" | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
   const busy = loading || batchLoading;
+  const showManualAnalysis = activeSource !== "scan";
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -98,23 +99,25 @@ export default function SentenceInput({
         onLoadingChange={setBatchLoading}
       />
 
-      <div>
-        <label htmlFor="sentence-input" className="eyebrow">ประโยคภาษาอังกฤษ · English sentence</label>
-        <div className="relative mt-2">
-          <textarea
-            id="sentence-input"
-            value={sentence}
-            onChange={(event) => setSentence(event.target.value)}
-            placeholder="Type or paste one English sentence…"
-            className="learner-input min-h-[128px] resize-y p-4 pb-9 text-lg leading-relaxed"
-            maxLength={500}
-            disabled={busy}
-          />
-          <span className="absolute bottom-3 right-4 text-xs tabular-nums text-[var(--text-secondary)]">
-            {sentence.length}/500
-          </span>
+      {showManualAnalysis && (
+        <div data-manual-analysis-input>
+          <label htmlFor="sentence-input" className="eyebrow">ประโยคภาษาอังกฤษ · English sentence</label>
+          <div className="relative mt-2">
+            <textarea
+              id="sentence-input"
+              value={sentence}
+              onChange={(event) => setSentence(event.target.value)}
+              placeholder="Type or paste one English sentence…"
+              className="learner-input min-h-[128px] resize-y p-4 pb-9 text-lg leading-relaxed"
+              maxLength={500}
+              disabled={busy}
+            />
+            <span className="absolute bottom-3 right-4 text-xs tabular-nums text-[var(--text-secondary)]">
+              {sentence.length}/500
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       <div>
         <button
@@ -145,24 +148,29 @@ export default function SentenceInput({
         )}
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <button
-          type="submit"
-          disabled={!sentence.trim() || busy}
-          className="learner-button learner-button-primary flex-1 px-6 py-3.5 text-base"
-        >
-          {loading ? (
-            <><WandSparkles className="h-5 w-5 motion-safe:animate-pulse" aria-hidden="true" />กำลังแกะประโยค… · Working on it</>
-          ) : (
-            <><WandSparkles className="h-5 w-5" aria-hidden="true" />แกะประโยค · Break it down</>
+      {(showManualAnalysis || hasResult) && (
+        <div className="flex flex-col gap-3 sm:flex-row">
+          {showManualAnalysis && (
+            <button
+              type="submit"
+              data-manual-analysis-submit
+              disabled={!sentence.trim() || busy}
+              className="learner-button learner-button-primary flex-1 px-6 py-3.5 text-base"
+            >
+              {loading ? (
+                <><WandSparkles className="h-5 w-5 motion-safe:animate-pulse" aria-hidden="true" />กำลังแกะประโยค… · Working on it</>
+              ) : (
+                <><WandSparkles className="h-5 w-5" aria-hidden="true" />แกะประโยค · Break it down</>
+              )}
+            </button>
           )}
-        </button>
-        {hasResult && (
-          <button type="button" onClick={handleReset} className="learner-button learner-button-quiet px-5">
-            <RotateCcw className="h-4 w-4" aria-hidden="true" />เริ่มใหม่ · Reset
-          </button>
-        )}
-      </div>
+          {hasResult && (
+            <button type="button" onClick={handleReset} className="learner-button learner-button-quiet px-5">
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />เริ่มใหม่ · Reset
+            </button>
+          )}
+        </div>
+      )}
     </form>
   );
 }

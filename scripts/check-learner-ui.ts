@@ -40,6 +40,18 @@ assert.match(progress, /Preparing your sentence/);
 assert.match(progress, /aria-current/);
 assert.match(progress, /motion-reduce/);
 assert.doesNotMatch(sentenceInput, /Loader2/);
+assert.match(
+  sentenceInput,
+  /const showManualAnalysis = activeSource !== "scan"/,
+);
+assert.match(
+  sentenceInput,
+  /showManualAnalysis && \(\s*<div data-manual-analysis-input/,
+);
+assert.match(
+  sentenceInput,
+  /showManualAnalysis && \(\s*<button\s+[\s\S]*?data-manual-analysis-submit/,
+);
 assert.match(ocrBatch, /ตรวจข้อความแล้ว/);
 assert.match(ocrBatch, /Break down all sentences/);
 assert.match(ocrBatch, /พร้อมแล้ว/);

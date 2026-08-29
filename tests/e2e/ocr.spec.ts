@@ -65,9 +65,8 @@ test("learner can review and batch-analyze text extracted locally", async ({ pag
     .getByRole("button", { name: /Students can edit every sentence/i })
     .click();
 
-  await expect(page.locator("#sentence-input")).toHaveValue(
-    "Students can edit every sentence.",
-  );
+  await expect(page.locator("#sentence-input")).toHaveCount(0);
+  await expect(page.getByText("คำแปลทดสอบ")).toBeVisible();
   expect(cloudPostCount).toBe(0);
   expect(batchPostCount).toBe(1);
   expect(singlePostCount).toBe(0);
